@@ -1,15 +1,12 @@
 """Audio format conversion: pitch shift, rate/mono/bit-depth, chop builder."""
 
-import os
 import uuid
 
-import numpy as np
-
-from pyp6.constants import MAX_SECONDS
-from pyp6.config import safe_base_name, temp_path
 from pyp6.audio.info import get_wav_info, get_wav_sample_width
 from pyp6.audio.playback import PYDUB_AVAILABLE
 from pyp6.audio.processing import snap_ms_backward_to_zero
+from pyp6.config import safe_base_name, temp_path
+from pyp6.constants import MAX_SECONDS
 
 
 def pitch_speed_factor(cents):
@@ -36,6 +33,7 @@ def compute_export_ready_path(filepath, target_rate, pitch_cents=0, force_mono=F
     if not filepath or not PYDUB_AVAILABLE:
         return filepath
     from pydub import AudioSegment
+
     try:
         _, orig_rate, orig_channels = get_wav_info(filepath)
     except Exception:
@@ -69,16 +67,19 @@ def convert_to_wav_if_needed(path):
         return path, False
     if not PYDUB_AVAILABLE:
         from pyp6.ui.dialogs_common import dark_showerror
+
         dark_showerror("pydub missing", "MP3 conversion requires pydub + ffmpeg.")
         return path, False
     try:
         from pydub import AudioSegment
+
         sound = AudioSegment.from_file(path)
         wav_path = temp_path(f"{safe_base_name(path)}_conv_{uuid.uuid4().hex[:6]}.wav")
         sound.export(wav_path, format="wav")
         return wav_path, True
     except Exception as e:
         from pyp6.ui.dialogs_common import dark_showerror
+
         dark_showerror("Conversion Error", f"Details: {e}")
         return path, False
 
@@ -88,8 +89,8 @@ def build_chop_file(file_paths, rate, channels, num_slices, normalize_mode="off"
     if not PYDUB_AVAILABLE:
         raise RuntimeError("pydub is required for the Chop feature.")
     from pydub import AudioSegment
-    from pydub.silence import detect_leading_silence
     from pydub.effects import normalize as pydub_normalize
+    from pydub.silence import detect_leading_silence
 
     limit = MAX_SECONDS.get((rate, channels))
     if not limit:

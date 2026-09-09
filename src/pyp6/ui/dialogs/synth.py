@@ -12,47 +12,81 @@ try:
 except ImportError:
     sd = None
 
+from pyp6._theme_vars import (
+    ACCENT_BLUE,
+    ACCENT_GREEN,
+    ACCENT_ORANGE,
+    ACCENT_RED,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BTN_BLUE,
+    BTN_GREEN,
+    BTN_ORANGE,
+    BTN_PURPLE,
+    BTN_RED,
+    FG_MUTED,
+    FG_TEXT,
+    WAVE_BG,
+    WAVE_COLOR,
+)
+from pyp6.config import (
+    load_default_autoplay,
+    load_drawn_library,
+    load_last_cycle_dir,
+    save_drawn_library,
+    save_last_cycle_dir,
+)
 from pyp6.constants import (
     UI_FAMILY,
-    WT_SR, WT_SEGMENTS, WT_MAX_SEG_FRAMES,
-    WT_DRAW_POINTS, WT_REGISTERS,
-    WT_MAX_SELECTED, WT_PREVIEW_SECONDS,
-    WT_MORPH_HEIGHT, WT_MORPH_SHOWN, WT_MORPH_MAX_POINTS,
-)
-from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_GREEN, ACCENT_ORANGE, ACCENT_RED,
-    BORDER_COLOR, WAVE_BG, WAVE_COLOR,
-    BTN_BLUE, BTN_GREEN, BTN_ORANGE, BTN_PURPLE, BTN_RED,
-)
-from pyp6.theme import blend_colors, readable_on
-from pyp6.config import (
-    load_last_cycle_dir, save_last_cycle_dir,
-    load_drawn_library, save_drawn_library,
-    load_default_autoplay,
+    WT_DRAW_POINTS,
+    WT_MAX_SEG_FRAMES,
+    WT_MAX_SELECTED,
+    WT_MORPH_HEIGHT,
+    WT_MORPH_MAX_POINTS,
+    WT_MORPH_SHOWN,
+    WT_PREVIEW_SECONDS,
+    WT_REGISTERS,
+    WT_SEGMENTS,
+    WT_SR,
 )
 from pyp6.synth.engine import (
     WTSynth,
-    midi_to_hz, midi_to_name, name_to_midi,
-    wt_tuning_info, wt_harmonics_for, wt_split_steps,
-    wt_build, wt_render_sweep,
+    midi_to_hz,
+    midi_to_name,
+    name_to_midi,
+    wt_build,
+    wt_harmonics_for,
+    wt_render_sweep,
+    wt_split_steps,
+    wt_tuning_info,
 )
 from pyp6.synth.waveforms import (
-    WT_FAMILIES, WT_FAMILY_MAP,
-    wt_load_cycle_file, wt_points_to_cycle, wt_family_entry,
+    WT_FAMILIES,
+    WT_FAMILY_MAP,
+    wt_family_entry,
+    wt_load_cycle_file,
+    wt_points_to_cycle,
+)
+from pyp6.theme import blend_colors, readable_on
+from pyp6.ui.dialogs_common import (
+    add_tooltip,
+    center_toplevel_on_parent,
+    dark_askyesno,
+    dark_showerror,
+    dark_showwarning,
+    style_checkbutton,
+    style_label,
+    style_listbox,
+    style_toplevel,
 )
 from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel, RoundedScrollbar
-from pyp6.ui.dialogs_common import (
-    style_toplevel, style_label, style_listbox, style_checkbutton,
-    center_toplevel_on_parent,
-    dark_showinfo, dark_showwarning, dark_showerror, dark_askyesno,
-    add_tooltip,
-)
-
 
 # ---------------------------------------------------------------------------
 # WaveformCreatorDialog
 # ---------------------------------------------------------------------------
+
 
 class WaveformCreatorDialog(tk.Toplevel):
     """Build one cycle twice - by hand or from a file - and morph A to B.
@@ -66,11 +100,11 @@ class WaveformCreatorDialog(tk.Toplevel):
     POINTS = WT_DRAW_POINTS
 
     PRESETS = {
-        "Sine":     lambda t: np.sin(2 * np.pi * t),
+        "Sine": lambda t: np.sin(2 * np.pi * t),
         "Triangle": lambda t: 2.0 * np.abs(2.0 * ((t + 0.25) % 1.0) - 1.0) - 1.0,
-        "Saw":      lambda t: 2.0 * t - 1.0,
-        "Square":   lambda t: np.where(t < 0.5, 1.0, -1.0),
-        "Flat":     lambda t: np.zeros_like(t),
+        "Saw": lambda t: 2.0 * t - 1.0,
+        "Square": lambda t: np.where(t < 0.5, 1.0, -1.0),
+        "Flat": lambda t: np.zeros_like(t),
     }
 
     def __init__(self, parent, app, entry=None, on_apply=None):
@@ -102,32 +136,55 @@ class WaveformCreatorDialog(tk.Toplevel):
         name_lbl = tk.Label(head, text="Name:")
         style_label(name_lbl, font=(UI_FAMILY, 9))
         name_lbl.pack(side="left")
-        self.name_entry = tk.Entry(head, textvariable=self.name_var, width=18,
-                                    bg=BG_INPUT, fg=FG_TEXT, insertbackground=FG_TEXT,
-                                    relief="flat", highlightthickness=1,
-                                    highlightbackground=BORDER_COLOR,
-                                    highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 10))
+        self.name_entry = tk.Entry(
+            head,
+            textvariable=self.name_var,
+            width=18,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 10),
+        )
         self.name_entry.pack(side="left", padx=(6, 18))
         for lane in ("A", "B"):
-            rb = tk.Radiobutton(head, text=f"Shape {lane}", variable=self.active,
-                                 value=lane, command=self._redraw)
-            style_checkbutton(rb)   # same styling helper the Mode radios use
+            rb = tk.Radiobutton(
+                head, text=f"Shape {lane}", variable=self.active, value=lane, command=self._redraw
+            )
+            style_checkbutton(rb)  # same styling helper the Mode radios use
             rb.pack(side="left", padx=(0, 10))
-        cb = tk.Checkbutton(head, text="Show what will actually sound",
-                             variable=self.show_result, command=self._redraw)
+        cb = tk.Checkbutton(
+            head,
+            text="Show what will actually sound",
+            variable=self.show_result,
+            command=self._redraw,
+        )
         style_checkbutton(cb)
         cb.pack(side="left", padx=(12, 0))
-        add_tooltip(cb,
-                    "Overlays the band-limited result on top of your line. The two "
-                    "differ wherever the drawing is sharper than the segment can "
-                    "hold, and that difference is what you will hear.")
+        add_tooltip(
+            cb,
+            "Overlays the band-limited result on top of your line. The two "
+            "differ wherever the drawing is sharper than the segment can "
+            "hold, and that difference is what you will hear.",
+        )
 
-        panel = RoundedPanel(self, title="Cycle", parent_bg=BG_DARK, panel_bg=BG_PANEL,
-                             radius=12, title_font=(UI_FAMILY, 9, "bold"),
-                             body_padx=10, body_pady=(24, 8))
+        panel = RoundedPanel(
+            self,
+            title="Cycle",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         panel.pack(fill="both", expand=True, padx=14)
-        self.canvas = tk.Canvas(panel.body, bg=WAVE_BG, highlightthickness=0,
-                                 height=260, cursor="pencil")
+        self.canvas = tk.Canvas(
+            panel.body, bg=WAVE_BG, highlightthickness=0, height=260, cursor="pencil"
+        )
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Button-1>", self._on_press)
         self.canvas.bind("<B1-Motion>", self._on_drag)
@@ -141,43 +198,92 @@ class WaveformCreatorDialog(tk.Toplevel):
         tools = tk.Frame(self, padx=14, pady=8, bg=BG_DARK)
         tools.pack(fill="x")
         for label in self.PRESETS:
-            b = RoundedButton(tools, text=label,
-                              command=lambda l=label: self._load_preset(l),
-                              bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK,
-                              width=72, height=26, font=(UI_FAMILY, 8))
+            b = RoundedButton(
+                tools,
+                text=label,
+                command=lambda lbl=label: self._load_preset(lbl),
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                parent_bg=BG_DARK,
+                width=72,
+                height=26,
+                font=(UI_FAMILY, 8),
+            )
             b.pack(side="left", padx=2)
-            add_tooltip(b, f"Replaces the active shape with a {label.lower()}. "
-                           f"Draw over it from there.")
-        load_btn = RoundedButton(tools, text="Load\u2026", command=self._load_file,
-                                  bg=BTN_PURPLE, fg="#FFFFFF", parent_bg=BG_DARK,
-                                  width=72, height=26, font=(UI_FAMILY, 8))
+            add_tooltip(
+                b, f"Replaces the active shape with a {label.lower()}. Draw over it from there."
+            )
+        load_btn = RoundedButton(
+            tools,
+            text="Load\u2026",
+            command=self._load_file,
+            bg=BTN_PURPLE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=72,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
         load_btn.pack(side="left", padx=(10, 2))
-        add_tooltip(load_btn,
-                    "Loads a single-cycle WAV into the active shape instead of "
-                    "drawing it.\n\nSample rate and bit depth do not matter - only "
-                    "the shape is taken. The pitch comes from the wavetable's root "
-                    "note, so a 48 kHz file and a 44.1 kHz file give the same "
-                    "note.\nStereo files are mixed down; any DC offset is removed.")
+        add_tooltip(
+            load_btn,
+            "Loads a single-cycle WAV into the active shape instead of "
+            "drawing it.\n\nSample rate and bit depth do not matter - only "
+            "the shape is taken. The pitch comes from the wavetable's root "
+            "note, so a 48 kHz file and a 44.1 kHz file give the same "
+            "note.\nStereo files are mixed down; any DC offset is removed.",
+        )
 
-        smooth_btn = RoundedButton(tools, text="Smooth", command=self._smooth,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK,
-                                    width=72, height=26, font=(UI_FAMILY, 8))
+        smooth_btn = RoundedButton(
+            tools,
+            text="Smooth",
+            command=self._smooth,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=72,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
         smooth_btn.pack(side="left", padx=(14, 2))
-        add_tooltip(smooth_btn, "Rounds off mouse jitter. Applying it repeatedly "
-                                "keeps taking harmonics off the top.")
-        copy_btn = RoundedButton(tools, text="A \u2192 B", command=self._copy_lane,
-                                  bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK,
-                                  width=72, height=26, font=(UI_FAMILY, 8))
+        add_tooltip(
+            smooth_btn,
+            "Rounds off mouse jitter. Applying it repeatedly keeps taking harmonics off the top.",
+        )
+        copy_btn = RoundedButton(
+            tools,
+            text="A \u2192 B",
+            command=self._copy_lane,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=72,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
         copy_btn.pack(side="left", padx=2)
-        add_tooltip(copy_btn, "Copies the active shape onto the other lane. With both "
-                              "lanes equal the family becomes a static block.")
-        self.prev_btn = RoundedButton(tools, text="\u25b6", command=self._toggle_preview,
-                                       bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK,
-                                       width=40, height=26, font=(UI_FAMILY, 10, "bold"))
+        add_tooltip(
+            copy_btn,
+            "Copies the active shape onto the other lane. With both "
+            "lanes equal the family becomes a static block.",
+        )
+        self.prev_btn = RoundedButton(
+            tools,
+            text="\u25b6",
+            command=self._toggle_preview,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=40,
+            height=26,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         self.prev_btn.pack(side="right", padx=2)
-        add_tooltip(self.prev_btn,
-                    "Plays the morph from A to B at the root note the dialog behind "
-                    "this one is set to, with the same band limit the table will get.")
+        add_tooltip(
+            self.prev_btn,
+            "Plays the morph from A to B at the root note the dialog behind "
+            "this one is set to, with the same band limit the table will get.",
+        )
 
         foot = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
         foot.pack(fill="x")
@@ -185,19 +291,35 @@ class WaveformCreatorDialog(tk.Toplevel):
             # Only when editing something that already exists - the library
             # would otherwise fill up with abandoned experiments and offer no
             # way out.
-            self.btn_delete = RoundedButton(foot, text="Delete", command=self._delete,
-                                             bg=BTN_RED, fg="#FFFFFF",
-                                             parent_bg=BG_DARK, width=110)
+            self.btn_delete = RoundedButton(
+                foot,
+                text="Delete",
+                command=self._delete,
+                bg=BTN_RED,
+                fg="#FFFFFF",
+                parent_bg=BG_DARK,
+                width=110,
+            )
             self.btn_delete.pack(side="left")
-            add_tooltip(self.btn_delete,
-                        "Removes this waveform from the saved library and from the "
-                        "step order. Wavetables already built with it keep working - "
-                        "their audio is on the pad, not here.")
-        cancel = RoundedButton(foot, text="Cancel", command=self._cancel, bg=BG_INPUT,
-                                fg=FG_TEXT, parent_bg=BG_DARK)
+            add_tooltip(
+                self.btn_delete,
+                "Removes this waveform from the saved library and from the "
+                "step order. Wavetables already built with it keep working - "
+                "their audio is on the pad, not here.",
+            )
+        cancel = RoundedButton(
+            foot, text="Cancel", command=self._cancel, bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK
+        )
         cancel.pack(side="right", padx=4)
-        ok = RoundedButton(foot, text="Use Waveform", command=self._apply,
-                            bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=150)
+        ok = RoundedButton(
+            foot,
+            text="Use Waveform",
+            command=self._apply,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=150,
+        )
         ok.pack(side="right", padx=4)
 
         self.protocol("WM_DELETE_WINDOW", self._cancel)
@@ -250,7 +372,7 @@ class WaveformCreatorDialog(tk.Toplevel):
 
     def _set_point(self, x, y):
         self.lanes[self.active.get()][self._x_to_index(x)] = self._y_to_value(y)
-        self._loaded_note = None    # edited by hand, no longer the file as loaded
+        self._loaded_note = None  # edited by hand, no longer the file as loaded
 
     def _load_preset(self, label):
         t = np.arange(self.POINTS) / float(self.POINTS)
@@ -266,10 +388,10 @@ class WaveformCreatorDialog(tk.Toplevel):
             hz = 65.41
         # Auditioned at the wavetable's own root note, so what you hear in the
         # browser is the pitch the table will be built at.
-        start_dir = (load_last_cycle_dir()
-                     or getattr(self.app, "import_root", None))
+        start_dir = load_last_cycle_dir() or getattr(self.app, "import_root", None)
         # Lazy import to avoid circular dependency
         from pyp6.ui.dialogs.audio import AudioPreviewDialog
+
         browser = AudioPreviewDialog(self, initial_dir=start_dir, cycle_hz=hz)
         self.wait_window(browser)
         # Remembered even when the browser was cancelled - you were browsing
@@ -288,30 +410,32 @@ class WaveformCreatorDialog(tk.Toplevel):
         try:
             pts, info = wt_load_cycle_file(path, self.POINTS)
         except Exception as e:
-            dark_showerror("Load Waveform",
-                           f"Could not read this file as a waveform cycle:\n{e}",
-                           parent=self)
+            dark_showerror(
+                "Load Waveform", f"Could not read this file as a waveform cycle:\n{e}", parent=self
+            )
             return
         if info["long"]:
             # A single cycle is a few hundred frames. Anything this long is a
             # normal sample, and squeezing it into one cycle turns it into a
             # dense inharmonic buzz rather than a waveform.
-            keep_hz = (info["rate"] or WT_SR) / float(info["frames"]) \
-                * (WT_DRAW_POINTS // 2)
+            keep_hz = (info["rate"] or WT_SR) / float(info["frames"]) * (WT_DRAW_POINTS // 2)
             if not dark_askyesno(
-                    "Not a Single Cycle?",
-                    f"This file is {info['frames']} frames long. A single-cycle "
-                    f"waveform is usually a few hundred.\n\n"
-                    f"The whole file becomes one cycle, so only its lowest "
-                    f"{WT_DRAW_POINTS // 2} harmonics survive - everything above "
-                    f"about {keep_hz:.0f} Hz in this file is discarded. What is "
-                    f"left is roughly its loudness contour, not its sound.\n\n"
-                    f"Load it anyway?", parent=self):
+                "Not a Single Cycle?",
+                f"This file is {info['frames']} frames long. A single-cycle "
+                f"waveform is usually a few hundred.\n\n"
+                f"The whole file becomes one cycle, so only its lowest "
+                f"{WT_DRAW_POINTS // 2} harmonics survive - everything above "
+                f"about {keep_hz:.0f} Hz in this file is discarded. What is "
+                f"left is roughly its loudness contour, not its sound.\n\n"
+                f"Load it anyway?",
+                parent=self,
+            ):
                 return
         self.lanes[self.active.get()] = np.asarray(pts, dtype=float)
         self._loaded_note = (
             f"{os.path.basename(path)}  \u00b7  {info['frames']} frames "
-            f"@ {info['rate']} Hz  \u00b7  {info['harmonics']} harmonics")
+            f"@ {info['rate']} Hz  \u00b7  {info['harmonics']} harmonics"
+        )
         self._redraw()
 
     def _smooth(self):
@@ -380,11 +504,14 @@ class WaveformCreatorDialog(tk.Toplevel):
             poly(band[::step], ACCENT_ORANGE, 1)
             self.info.config(
                 text=f"Shape {self.active.get()}  \u00b7  drawn with {self.POINTS} points "
-                     f"\u2192 {usable} harmonics usable  \u00b7  the segment allows "
-                     f"{h_avail}  \u00b7  orange is what will sound")
+                f"\u2192 {usable} harmonics usable  \u00b7  the segment allows "
+                f"{h_avail}  \u00b7  orange is what will sound"
+            )
         else:
-            self.info.config(text=f"Shape {self.active.get()}  \u00b7  dashed line is the "
-                                  f"other shape  \u00b7  the family morphs A \u2192 B")
+            self.info.config(
+                text=f"Shape {self.active.get()}  \u00b7  dashed line is the "
+                f"other shape  \u00b7  the family morphs A \u2192 B"
+            )
         note = getattr(self, "_loaded_note", None)
         if note:
             self.info.config(text=self.info.cget("text") + "\n" + note)
@@ -397,8 +524,9 @@ class WaveformCreatorDialog(tk.Toplevel):
         try:
             cfg = getattr(self.app, "_wt_last_config", None) or {}
             midi = name_to_midi(cfg.get("note", "C2"))
-            audio = wt_render_sweep(self._entry(), midi, int(cfg.get("cycles", 1)),
-                                    int(cfg.get("up", 0)), 24)
+            audio = wt_render_sweep(
+                self._entry(), midi, int(cfg.get("cycles", 1)), int(cfg.get("up", 0)), 24
+            )
             sd.play(audio, WT_SR)
         except Exception as e:
             dark_showerror("Preview", f"Could not play the sweep:\n{e}", parent=self)
@@ -424,13 +552,15 @@ class WaveformCreatorDialog(tk.Toplevel):
 
     # ----------------------------------------------------------- result
     def _entry(self):
-        return {"kind": "draw",
-                "name": self.name_var.get().strip() or "Custom",
-                # Rounded on the way out: a preset folder is meant to be
-                # swapped around, and full float repr would triple its size
-                # for precision no ear can use.
-                "a": [round(float(v), 4) for v in self.lanes["A"]],
-                "b": [round(float(v), 4) for v in self.lanes["B"]]}
+        return {
+            "kind": "draw",
+            "name": self.name_var.get().strip() or "Custom",
+            # Rounded on the way out: a preset folder is meant to be
+            # swapped around, and full float repr would triple its size
+            # for precision no ear can use.
+            "a": [round(float(v), 4) for v in self.lanes["A"]],
+            "b": [round(float(v), 4) for v in self.lanes["B"]],
+        }
 
     def _apply(self):
         self._stop_preview()
@@ -441,10 +571,12 @@ class WaveformCreatorDialog(tk.Toplevel):
 
     def _delete(self):
         name = self.name_var.get().strip() or "Custom"
-        if not dark_askyesno("Delete Waveform",
-                             f"Remove \"{name}\" from the saved waveforms?\n\n"
-                             "Wavetables already built with it are not affected.",
-                             parent=self):
+        if not dark_askyesno(
+            "Delete Waveform",
+            f'Remove "{name}" from the saved waveforms?\n\n'
+            "Wavetables already built with it are not affected.",
+            parent=self,
+        ):
             return
         self._stop_preview()
         self.result = {"delete": name}
@@ -461,6 +593,7 @@ class WaveformCreatorDialog(tk.Toplevel):
 # ---------------------------------------------------------------------------
 # SynthDialog
 # ---------------------------------------------------------------------------
+
 
 class SynthDialog(tk.Toplevel):
     """The wavetable builder, themed to match the main window.
@@ -499,7 +632,7 @@ class SynthDialog(tk.Toplevel):
         # that exact shape, and a same-named entry in the library would
         # otherwise silently change what a rebuild produces.
         self.custom = load_drawn_library()
-        for entry in (cfg.get("custom") or []):
+        for entry in cfg.get("custom") or []:
             nm = entry.get("name")
             if nm:
                 self.custom[nm] = entry
@@ -523,15 +656,23 @@ class SynthDialog(tk.Toplevel):
             if dropped:
                 # Silently shortening the step order would change the table
                 # on the next build without the user noticing.
-                self.after(60, lambda d=list(dropped), o=list(over_limit):
-                           dark_showwarning(
-                    "Step Order Shortened",
-                    "This pad's wavetable used families that could not all be "
-                    "restored:\n\n" + "\n".join(f"\u2022 {n}" for n in d) +
-                    (f"\n\nThe step order is limited to {WT_MAX_SELECTED} "
-                     f"families." if o else "") +
-                    "\n\nThey have been left out of the step order. Rebuilding "
-                    "now would produce a different table.", parent=self))
+                self.after(
+                    60,
+                    lambda d=list(dropped), o=list(over_limit): dark_showwarning(
+                        "Step Order Shortened",
+                        "This pad's wavetable used families that could not all be "
+                        "restored:\n\n"
+                        + "\n".join(f"\u2022 {n}" for n in d)
+                        + (
+                            f"\n\nThe step order is limited to {WT_MAX_SELECTED} families."
+                            if o
+                            else ""
+                        )
+                        + "\n\nThey have been left out of the step order. Rebuilding "
+                        "now would produce a different table.",
+                        parent=self,
+                    ),
+                )
         self._apply_mode(restore=bool(cfg))
         center_toplevel_on_parent(self, parent)
         self.protocol("WM_DELETE_WINDOW", self._cancel)
@@ -544,11 +685,16 @@ class SynthDialog(tk.Toplevel):
         RoundedPanel, matching how the Chop dialog frames its two lists."""
         panel = None
         if title is not None:
-            panel = RoundedPanel(parent, title=title,
-                                 parent_bg=parent.cget("bg"),
-                                 panel_bg=BG_PANEL, radius=12,
-                                 title_font=(UI_FAMILY, 9, "bold"),
-                                 body_padx=10, body_pady=(24, 8))
+            panel = RoundedPanel(
+                parent,
+                title=title,
+                parent_bg=parent.cget("bg"),
+                panel_bg=BG_PANEL,
+                radius=12,
+                title_font=(UI_FAMILY, 9, "bold"),
+                body_padx=10,
+                body_pady=(24, 8),
+            )
             parent = panel.body
         box = tk.Frame(parent, bg=BG_PANEL)
         box.rowconfigure(0, weight=1)
@@ -556,11 +702,9 @@ class SynthDialog(tk.Toplevel):
         lb = tk.Listbox(box, selectmode="extended", exportselection=False, height=13)
         style_listbox(lb)
         lb.grid(row=0, column=0, sticky="nsew")
-        vs = RoundedScrollbar(box, orient="vertical", command=lb.yview,
-                              parent_bg=BG_PANEL)
+        vs = RoundedScrollbar(box, orient="vertical", command=lb.yview, parent_bg=BG_PANEL)
         vs.grid(row=0, column=1, sticky="ns", padx=(3, 0))
-        hs = RoundedScrollbar(box, orient="horizontal", command=lb.xview,
-                              parent_bg=BG_PANEL)
+        hs = RoundedScrollbar(box, orient="horizontal", command=lb.xview, parent_bg=BG_PANEL)
         hs.grid(row=1, column=0, sticky="ew", pady=(3, 0))
         lb.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
 
@@ -590,21 +734,23 @@ class SynthDialog(tk.Toplevel):
         style_label(lbl, font=(UI_FAMILY, 9, "bold"))
         lbl.pack(side="left")
         for txt in ("Simple", "Advanced"):
-            rb = tk.Radiobutton(modebar, text=txt, value=txt, variable=self.var_mode,
-                                command=self._apply_mode)
+            rb = tk.Radiobutton(
+                modebar, text=txt, value=txt, variable=self.var_mode, command=self._apply_mode
+            )
             style_checkbutton(rb)
             rb.pack(side="left", padx=(10, 0))
         self.lbl_mode_hint = tk.Label(modebar, text="")
         style_label(self.lbl_mode_hint, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.lbl_mode_hint.pack(side="left", padx=(16, 0))
-        add_tooltip(modebar,
-                    "Simple bakes all 16 waveform families into the table and only "
-                    "asks for the register. Advanced lets you pick the root note, the "
-                    "upward playing range and exactly which families go in.")
+        add_tooltip(
+            modebar,
+            "Simple bakes all 16 waveform families into the table and only "
+            "asks for the register. Advanced lets you pick the root note, the "
+            "upward playing range and exactly which families go in.",
+        )
 
         # --- pitch ---
-        pitch_panel = RoundedPanel(root, title="PITCH", parent_bg=BG_DARK,
-                                   title_fg=ACCENT_BLUE)
+        pitch_panel = RoundedPanel(root, title="PITCH", parent_bg=BG_DARK, title_fg=ACCENT_BLUE)
         pitch_panel.pack(fill="x")
         pf = pitch_panel.body
 
@@ -613,48 +759,77 @@ class SynthDialog(tk.Toplevel):
         l1 = tk.Label(row, text="Register")
         style_label(l1, bg=BG_PANEL, font=(UI_FAMILY, 9))
         l1.pack(side="left")
-        dd = RoundedDropdown(row, self.var_reg, list(WT_REGISTERS),
-                             command=lambda _v=None: self._on_register(),
-                             parent_bg=BG_PANEL, width=90, height=26,
-                             font=(UI_FAMILY, 9))
+        dd = RoundedDropdown(
+            row,
+            self.var_reg,
+            list(WT_REGISTERS),
+            command=lambda _v=None: self._on_register(),
+            parent_bg=BG_PANEL,
+            width=90,
+            height=26,
+            font=(UI_FAMILY, 9),
+        )
         dd.pack(side="left", padx=(6, 18))
-        add_tooltip(dd,
-                    "Bass keeps the full harmonic content and is meant to be played at "
-                    "the root note or below. Mid and Lead are band limited so they stay "
-                    "alias-free one or two octaves up.")
+        add_tooltip(
+            dd,
+            "Bass keeps the full harmonic content and is meant to be played at "
+            "the root note or below. Mid and Lead are band limited so they stay "
+            "alias-free one or two octaves up.",
+        )
 
         self.adv_row = tk.Frame(row, bg=BG_PANEL)
         self.adv_row.pack(side="left")
         self.lbl_note = tk.Label(self.adv_row, text="Root note")
         style_label(self.lbl_note, bg=BG_PANEL, font=(UI_FAMILY, 9))
         self.lbl_note.pack(side="left")
-        self.dd_note = RoundedDropdown(self.adv_row, self.var_note, ["C2"],
-                                       command=lambda _v=None: self._refresh(),
-                                       parent_bg=BG_PANEL, width=70, height=26,
-                                       font=(UI_FAMILY, 9))
+        self.dd_note = RoundedDropdown(
+            self.adv_row,
+            self.var_note,
+            ["C2"],
+            command=lambda _v=None: self._refresh(),
+            parent_bg=BG_PANEL,
+            width=70,
+            height=26,
+            font=(UI_FAMILY, 9),
+        )
         self.dd_note.pack(side="left", padx=(6, 18))
-        add_tooltip(self.dd_note,
-                    "The note the wavetable is tuned to, six semitones either side of "
-                    "the register default. Baking your key in here means the pad plays "
-                    "at 1:1 with no interpolation loss.")
+        add_tooltip(
+            self.dd_note,
+            "The note the wavetable is tuned to, six semitones either side of "
+            "the register default. Baking your key in here means the pad plays "
+            "at 1:1 with no interpolation loss.",
+        )
 
         self.lbl_up = tk.Label(self.adv_row, text="Plays up to")
         style_label(self.lbl_up, bg=BG_PANEL, font=(UI_FAMILY, 9))
         self.lbl_up.pack(side="left")
-        self.sp_up = tk.Spinbox(self.adv_row, from_=0, to=36, width=4, textvariable=self.var_up,
-                                command=self._refresh, bg=BG_INPUT, fg=FG_TEXT,
-                                buttonbackground=BG_INPUT, relief="flat",
-                                highlightthickness=1, highlightbackground=BORDER_COLOR,
-                                insertbackground=FG_TEXT, font=(UI_FAMILY, 9))
+        self.sp_up = tk.Spinbox(
+            self.adv_row,
+            from_=0,
+            to=36,
+            width=4,
+            textvariable=self.var_up,
+            command=self._refresh,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            buttonbackground=BG_INPUT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            insertbackground=FG_TEXT,
+            font=(UI_FAMILY, 9),
+        )
         self.sp_up.pack(side="left", padx=6)
         self.sp_up.bind("<KeyRelease>", lambda e: self._refresh())
         self.lbl_up_unit = tk.Label(self.adv_row, text="semitones above root")
         style_label(self.lbl_up_unit, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.lbl_up_unit.pack(side="left")
-        add_tooltip(self.sp_up,
-                    "How far above the root note you intend to play. Aliasing only "
-                    "happens when transposing up, so this sets the band limit: "
-                    "harmonics = maximum / 2^(semitones/12).")
+        add_tooltip(
+            self.sp_up,
+            "How far above the root note you intend to play. Aliasing only "
+            "happens when transposing up, so this sets the band limit: "
+            "harmonics = maximum / 2^(semitones/12).",
+        )
 
         self.lbl_info = tk.Label(pf, text="", justify="left")
         style_label(self.lbl_info, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
@@ -676,8 +851,7 @@ class SynthDialog(tk.Toplevel):
         # Double-click moves a built-in across, but reopens a drawing for
         # editing - there is no other way back into a shape you made.
         self.lb_avail.bind("<Double-Button-1>", self._on_avail_double)
-        self.lb_avail.bind("<<ListboxSelect>>",
-                           lambda e: self._pick_preview(self.lb_avail))
+        self.lb_avail.bind("<<ListboxSelect>>", lambda e: self._pick_preview(self.lb_avail))
 
         col = tk.Frame(wf, bg=BG_DARK)
         col.grid(row=1, column=1, padx=8)
@@ -685,60 +859,101 @@ class SynthDialog(tk.Toplevel):
         # same place the Chop dialog puts Clear Selection. An arrow glyph in
         # this column would have been one more thing to decode.
         for txt, cmd, tip in (
-                ("\u2192", self._move_right, "Moves the highlighted families into the step order."),
-                ("\u2190", self._move_left, "Takes the highlighted families back out."),
-                ("\u25b2", lambda: self._reorder(-1), "Moves the highlighted families one place earlier."),
-                ("\u25bc", lambda: self._reorder(1), "Moves the highlighted families one place later.")):
-            b = RoundedButton(col, text=txt, command=cmd, bg=BG_INPUT, fg=FG_TEXT,
-                              parent_bg=BG_DARK, width=40, height=26,
-                              font=(UI_FAMILY, 10, "bold"))
+            ("\u2192", self._move_right, "Moves the highlighted families into the step order."),
+            ("\u2190", self._move_left, "Takes the highlighted families back out."),
+            (
+                "\u25b2",
+                lambda: self._reorder(-1),
+                "Moves the highlighted families one place earlier.",
+            ),
+            ("\u25bc", lambda: self._reorder(1), "Moves the highlighted families one place later."),
+        ):
+            b = RoundedButton(
+                col,
+                text=txt,
+                command=cmd,
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                parent_bg=BG_DARK,
+                width=40,
+                height=26,
+                font=(UI_FAMILY, 10, "bold"),
+            )
             b.pack(pady=3)
             add_tooltip(b, tip)
 
         # Between the two lists, since it previews the family highlighted in
         # either one. Glyph only: the family name would have set the width of
         # the whole column, and it changes with every click.
-        self.btn_prev = RoundedButton(col, text="\u25b6", command=self._toggle_preview,
-                                      bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK,
-                                      width=40, height=26, state="disabled",
-                                      font=(UI_FAMILY, 10, "bold"))
+        self.btn_prev = RoundedButton(
+            col,
+            text="\u25b6",
+            command=self._toggle_preview,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=40,
+            height=26,
+            state="disabled",
+            font=(UI_FAMILY, 10, "bold"),
+        )
         self.btn_prev.pack(pady=(14, 3))
-        add_tooltip(self.btn_prev,
-                    "Plays a sweep through the family highlighted in either column, at "
-                    "the configured root note and with the same band limit the finished "
-                    "table will have.")
+        add_tooltip(
+            self.btn_prev,
+            "Plays a sweep through the family highlighted in either column, at "
+            "the configured root note and with the same band limit the finished "
+            "table will have.",
+        )
 
-        self.btn_draw = RoundedButton(col, text="\u270e", command=self._open_draw,
-                                      bg=BTN_ORANGE, fg="#FFFFFF", parent_bg=BG_DARK,
-                                      width=40, height=26, font=(UI_FAMILY, 11, "bold"))
+        self.btn_draw = RoundedButton(
+            col,
+            text="\u270e",
+            command=self._open_draw,
+            bg=BTN_ORANGE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=40,
+            height=26,
+            font=(UI_FAMILY, 11, "bold"),
+        )
         self.btn_draw.pack(pady=(14, 3))
-        add_tooltip(self.btn_draw,
-                    "Opens the Waveform Creator: build a waveform by hand or load a "
-                    "single-cycle file, and it joins the list on the left as its own "
-                    "family. Two shapes are made, and the family morphs from one to "
-                    "the other.\nDouble-click one of your own waveforms to edit it "
-                    "again.")
+        add_tooltip(
+            self.btn_draw,
+            "Opens the Waveform Creator: build a waveform by hand or load a "
+            "single-cycle file, and it joins the list on the left as its own "
+            "family. Two shapes are made, and the family morphs from one to "
+            "the other.\nDouble-click one of your own waveforms to edit it "
+            "again.",
+        )
 
         # Red only while a drawn family is highlighted. The built-in sixteen
         # cannot be deleted, so an always-red button would promise something
         # it refuses to do most of the time.
-        self.btn_del = RoundedButton(col, text="\u2715", command=self._delete_custom,
-                                     bg=BTN_RED, fg="#FFFFFF", parent_bg=BG_DARK,
-                                     width=40, height=26, font=(UI_FAMILY, 11, "bold"),
-                                     state="disabled")
+        self.btn_del = RoundedButton(
+            col,
+            text="\u2715",
+            command=self._delete_custom,
+            bg=BTN_RED,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=40,
+            height=26,
+            font=(UI_FAMILY, 11, "bold"),
+            state="disabled",
+        )
         self.btn_del.pack(pady=3)
-        add_tooltip(self.btn_del,
-                    "Deletes the highlighted hand-drawn waveform - from the list, "
-                    "from the step order and from the saved library. Only the drawn "
-                    "ones can go; the built-in families are fixed.\nWavetables already "
-                    "built with it keep working.")
-
+        add_tooltip(
+            self.btn_del,
+            "Deletes the highlighted hand-drawn waveform - from the list, "
+            "from the step order and from the saved library. Only the drawn "
+            "ones can go; the built-in families are fixed.\nWavetables already "
+            "built with it keep working.",
+        )
 
         box_s, self.lb_sel = self._scrolled_list(wf, title="Step Order")
         box_s.grid(row=1, column=2, sticky="nsew")
         self.lb_sel.bind("<Double-Button-1>", lambda e: self._move_left())
-        self.lb_sel.bind("<<ListboxSelect>>",
-                         lambda e: self._pick_preview(self.lb_sel))
+        self.lb_sel.bind("<<ListboxSelect>>", lambda e: self._pick_preview(self.lb_sel))
 
         # Fixed-height box + wraplength tied to the panel width: the label can
         # never widen the dialog, and it cannot change its height either.
@@ -748,36 +963,48 @@ class SynthDialog(tk.Toplevel):
         self.lbl_alloc = tk.Label(alloc_box, text="", justify="left", anchor="nw")
         style_label(self.lbl_alloc, bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.lbl_alloc.place(x=0, y=0, relwidth=1.0, relheight=1.0)
-        alloc_box.bind("<Configure>",
-                       lambda e: self.lbl_alloc.config(wraplength=max(200, e.width - 4)))
+        alloc_box.bind(
+            "<Configure>", lambda e: self.lbl_alloc.config(wraplength=max(200, e.width - 4))
+        )
 
-        morph_panel = RoundedPanel(wf, title="Morph", parent_bg=BG_DARK,
-                                   panel_bg=BG_PANEL, radius=12,
-                                   title_font=(UI_FAMILY, 9, "bold"),
-                                   body_padx=10, body_pady=(24, 8))
+        morph_panel = RoundedPanel(
+            wf,
+            title="Morph",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         morph_panel.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(8, 0))
-        self.morph_canvas = tk.Canvas(morph_panel.body, bg=WAVE_BG,
-                                       highlightthickness=0, height=WT_MORPH_HEIGHT)
+        self.morph_canvas = tk.Canvas(
+            morph_panel.body, bg=WAVE_BG, highlightthickness=0, height=WT_MORPH_HEIGHT
+        )
         self.morph_canvas.pack(fill="x")
-        self.morph_canvas.bind(
-            "<Configure>", lambda e: self._schedule_morph_work(autoplay=False))
-        add_tooltip(self.morph_canvas,
-                    "The waveforms this family steps through, front to back: the "
-                    "first step nearest, the last furthest away. During preview the "
-                    "step being played is highlighted.")
+        self.morph_canvas.bind("<Configure>", lambda e: self._schedule_morph_work(autoplay=False))
+        add_tooltip(
+            self.morph_canvas,
+            "The waveforms this family steps through, front to back: the "
+            "first step nearest, the last furthest away. During preview the "
+            "step being played is highlighted.",
+        )
         self._morph_cache = None
 
         prev = tk.Frame(wf, bg=BG_DARK)
         prev.grid(row=4, column=0, columnspan=3, sticky="w", pady=(8, 0))
-        self.cb_autoplay = tk.Checkbutton(prev, text="Autoplay on click",
-                                          variable=self.var_autoplay)
+        self.cb_autoplay = tk.Checkbutton(
+            prev, text="Autoplay on click", variable=self.var_autoplay
+        )
         style_checkbutton(self.cb_autoplay)
         self.cb_autoplay.pack(side="left", padx=(0, 14))
-        add_tooltip(self.cb_autoplay,
-                    "Plays the morph sweep as soon as you click a family, instead "
-                    "of waiting for the play button. Clicking a different family "
-                    "always stops whatever is running.\nThe starting position of "
-                    "this switch is set under Settings \u2192 Defaults.")
+        add_tooltip(
+            self.cb_autoplay,
+            "Plays the morph sweep as soon as you click a family, instead "
+            "of waiting for the play button. Clicking a different family "
+            "always stops whatever is running.\nThe starting position of "
+            "this switch is set under Settings \u2192 Defaults.",
+        )
         self.lbl_prev = tk.Label(prev, text="")
         style_label(self.lbl_prev, bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.lbl_prev.pack(side="left")
@@ -786,38 +1013,54 @@ class SynthDialog(tk.Toplevel):
         foot = tk.Frame(root, bg=BG_DARK)
         self.foot = foot
         foot.pack(fill="x", pady=(12, 0))
-        self.btn_clear = RoundedButton(foot, text="Clear Selection",
-                                        command=self._clear_all, bg=BG_INPUT,
-                                        fg=FG_TEXT, parent_bg=BG_DARK, width=130)
+        self.btn_clear = RoundedButton(
+            foot,
+            text="Clear Selection",
+            command=self._clear_all,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=130,
+        )
         self.btn_clear.pack(side="left", padx=(0, 12))
-        add_tooltip(self.btn_clear,
-                    "Empties the step order on the right. Nothing else is changed.")
-        self.cb_map = tk.Checkbutton(foot, text="Save waveform overview (CSV)",
-                                     variable=self.var_save_map)
+        add_tooltip(self.btn_clear, "Empties the step order on the right. Nothing else is changed.")
+        self.cb_map = tk.Checkbutton(
+            foot, text="Save waveform overview (CSV)", variable=self.var_save_map
+        )
         style_checkbutton(self.cb_map)
         self.cb_map.pack(side="left")
-        add_tooltip(self.cb_map,
-                    "Writes a table listing what sits on every one of the 255 steps: "
-                    "family, morph position and start frame. A file dialog opens after "
-                    "you click Apply.")
+        add_tooltip(
+            self.cb_map,
+            "Writes a table listing what sits on every one of the 255 steps: "
+            "family, morph position and start frame. A file dialog opens after "
+            "you click Apply.",
+        )
 
         # Deliberately identical to the Chop dialog's footer: same colours,
         # same widths, same padding, same order.
-        cancel_btn = RoundedButton(foot, text="Cancel", command=self._cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK)
+        cancel_btn = RoundedButton(
+            foot, text="Cancel", command=self._cancel, bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK
+        )
         cancel_btn.pack(side="right", padx=4)
-        self.btn_apply = RoundedButton(foot, text="Build Wavetable",
-                                       command=self._apply, bg=BTN_GREEN,
-                                       fg="#FFFFFF", parent_bg=BG_DARK, width=150)
+        self.btn_apply = RoundedButton(
+            foot,
+            text="Build Wavetable",
+            command=self._apply,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=150,
+        )
         self.btn_apply.pack(side="right", padx=4)
-        add_tooltip(self.btn_apply,
-                    "Builds the wavetable and puts it on the pad together with its "
-                    ".PRM settings file. On the P-6 set SIZE to 1 and sweep START to "
-                    "step through the waveforms.")
+        add_tooltip(
+            self.btn_apply,
+            "Builds the wavetable and puts it on the pad together with its "
+            ".PRM settings file. On the P-6 set SIZE to 1 and sweep START to "
+            "step through the waveforms.",
+        )
 
         # Same reasoning as lbl_alloc - status text length varies a lot.
-        self.lbl_status = tk.Label(root, text="", justify="left", anchor="w",
-                                    wraplength=560)
+        self.lbl_status = tk.Label(root, text="", justify="left", anchor="w", wraplength=560)
         style_label(self.lbl_status, fg=FG_MUTED, font=(UI_FAMILY, 8, "bold"))
         self.lbl_status.pack(fill="x", pady=(8, 0))
 
@@ -834,11 +1077,11 @@ class SynthDialog(tk.Toplevel):
             self.adv_row.pack_forget()
             self.wt_panel.pack_forget()
             self.lbl_mode_hint.config(
-                text=f"all {len(WT_FAMILIES)} families across {WT_SEGMENTS} steps")
+                text=f"all {len(WT_FAMILIES)} families across {WT_SEGMENTS} steps"
+            )
         else:
             self.adv_row.pack(side="left")
-            self.wt_panel.pack(fill="both", expand=True, pady=(12, 0),
-                               before=self.foot)
+            self.wt_panel.pack(fill="both", expand=True, pady=(12, 0), before=self.foot)
             self.lbl_mode_hint.config(text="")
         if hasattr(self, "lb_avail"):
             self._fill_available()
@@ -858,7 +1101,7 @@ class SynthDialog(tk.Toplevel):
         Simple and Advanced can still have different sizes.
         """
         try:
-            self.geometry("")           # recompute from content once
+            self.geometry("")  # recompute from content once
             self.update_idletasks()
             w = max(self.winfo_reqwidth(), 520)
             h = max(self.winfo_reqheight(), 200)
@@ -906,8 +1149,7 @@ class SynthDialog(tk.Toplevel):
         # The draw dialog previews at the pitch this dialog is set to, so it
         # needs the current settings, not the ones from the last build.
         midi, cycles, up = self._current_pitch()
-        self.app._wt_last_config = {"note": self.var_note.get(),
-                                    "cycles": cycles, "up": up}
+        self.app._wt_last_config = {"note": self.var_note.get(), "cycles": cycles, "up": up}
         entry = self.custom.get(existing) if existing else None
         dlg = WaveformCreatorDialog(self, self.app, entry=entry)
         self.wait_window(dlg)
@@ -916,8 +1158,13 @@ class SynthDialog(tk.Toplevel):
         if dlg.result.get("delete"):
             gone = existing or dlg.result["delete"]
             self.custom.pop(gone, None)
-            save_drawn_library({n: e for n, e in self.custom.items()
-                                if isinstance(e, dict) and e.get("kind") == "draw"})
+            save_drawn_library(
+                {
+                    n: e
+                    for n, e in self.custom.items()
+                    if isinstance(e, dict) and e.get("kind") == "draw"
+                }
+            )
             for i in reversed(range(self.lb_sel.size())):
                 if self.lb_sel.get(i) == gone:
                     self.lb_sel.delete(i)
@@ -942,28 +1189,34 @@ class SynthDialog(tk.Toplevel):
         new["name"] = self._unique_custom_name(wanted, allow=old_name)
         renamed = new["name"] != wanted
         self.custom[new["name"]] = new
-        self._morph_shape_cache = None      # the shape changed under its name
-        if not save_drawn_library({n: e for n, e in self.custom.items()
-                                   if isinstance(e, dict) and e.get("kind") == "draw"}):
-            self._status("Waveform kept for this pad, but the library could not be "
-                         "written.", "bad")
+        self._morph_shape_cache = None  # the shape changed under its name
+        if not save_drawn_library(
+            {
+                n: e
+                for n, e in self.custom.items()
+                if isinstance(e, dict) and e.get("kind") == "draw"
+            }
+        ):
+            self._status("Waveform kept for this pad, but the library could not be written.", "bad")
         self._fill_available()
         # A shape you just drew is almost certainly meant to be used, so it
         # goes straight into the step order - unless it is already there
         # (editing an existing one) or there is no room left.
-        note = (f"\"{wanted}\" was already taken, saved as \"{new['name']}\".  "
-                if renamed else "")
+        note = f'"{wanted}" was already taken, saved as "{new["name"]}".  ' if renamed else ""
         cur = self._selection()
         if new["name"] not in cur:
             if len(cur) < WT_MAX_SELECTED:
                 self.lb_sel.insert("end", new["name"])
-                self._status(f"{note}{new['name']} added to the step order.",
-                             "warn" if renamed else "good")
+                self._status(
+                    f"{note}{new['name']} added to the step order.", "warn" if renamed else "good"
+                )
             else:
-                self._status(f"{note}{new['name']} is in the list on the left. The "
-                             f"step order is full ({WT_MAX_SELECTED}), so it was "
-                             f"not added - take something out to make room.",
-                             "warn")
+                self._status(
+                    f"{note}{new['name']} is in the list on the left. The "
+                    f"step order is full ({WT_MAX_SELECTED}), so it was "
+                    f"not added - take something out to make room.",
+                    "warn",
+                )
         elif renamed:
             self._status(note.strip(), "warn")
         self._refresh()
@@ -1009,19 +1262,29 @@ class SynthDialog(tk.Toplevel):
             added += 1
         self._refresh()
         if no_room:
-            self._status(f"The step order holds {WT_MAX_SELECTED} families at most. "
-                         f"No room for {', '.join(no_room)} - take something out "
-                         f"first.", "warn")
+            self._status(
+                f"The step order holds {WT_MAX_SELECTED} families at most. "
+                f"No room for {', '.join(no_room)} - take something out "
+                f"first.",
+                "warn",
+            )
             return
         # Silently doing nothing is the worst outcome here - the click looks
         # broken. Each family can only appear once, so say so.
         if skipped and not added:
-            self._status("Already in the step order: " + ", ".join(skipped)
-                         + ".  Each family can be used once; reorder it with the "
-                           "arrows instead.", "warn")
+            self._status(
+                "Already in the step order: "
+                + ", ".join(skipped)
+                + ".  Each family can be used once; reorder it with the "
+                "arrows instead.",
+                "warn",
+            )
         elif skipped:
-            self._status(f"Added {added}, skipped {len(skipped)} already in the "
-                         f"step order ({', '.join(skipped)}).", "info")
+            self._status(
+                f"Added {added}, skipped {len(skipped)} already in the "
+                f"step order ({', '.join(skipped)}).",
+                "info",
+            )
         else:
             self._status("")
 
@@ -1069,16 +1332,22 @@ class SynthDialog(tk.Toplevel):
         midi, cycles, up = self._current_pitch()
         L, f_real, cents = wt_tuning_info(midi, cycles)
         h, h_max = wt_harmonics_for(L, cycles, up)
-        warn = "" if L <= WT_MAX_SEG_FRAMES else \
-            f"    too long (max {WT_MAX_SEG_FRAMES} frames/segment)"
-        self.lbl_info.config(text=(
-            f"Segment {L} frames \u00d7 {cycles} cycles    \u00b7    "
-            f"{f_real:.3f} Hz ({cents:+.2f} cents)    \u00b7    "
-            f"total {WT_SEGMENTS * L / WT_SR:.4f} s    \u00b7    "
-            f"step {L / WT_SR * 1000:.3f} ms    \u00b7    "
-            f"START 0-{WT_SEGMENTS - 1}\n"
-            f"{h} of {h_max} possible harmonics    \u00b7    "
-            f"highest at {h * f_real / 1000:.2f} kHz at the root note{warn}"))
+        warn = (
+            ""
+            if L <= WT_MAX_SEG_FRAMES
+            else f"    too long (max {WT_MAX_SEG_FRAMES} frames/segment)"
+        )
+        self.lbl_info.config(
+            text=(
+                f"Segment {L} frames \u00d7 {cycles} cycles    \u00b7    "
+                f"{f_real:.3f} Hz ({cents:+.2f} cents)    \u00b7    "
+                f"total {WT_SEGMENTS * L / WT_SR:.4f} s    \u00b7    "
+                f"step {L / WT_SR * 1000:.3f} ms    \u00b7    "
+                f"START 0-{WT_SEGMENTS - 1}\n"
+                f"{h} of {h_max} possible harmonics    \u00b7    "
+                f"highest at {h * f_real / 1000:.2f} kHz at the root note{warn}"
+            )
+        )
 
         sel = self._selection()
         # Families already in use are dimmed in the left column, so the state
@@ -1086,18 +1355,20 @@ class SynthDialog(tk.Toplevel):
         used = set(sel)
         for i in range(self.lb_avail.size()):
             self.lb_avail.itemconfig(
-                i, foreground=FG_MUTED if self.lb_avail.get(i) in used else FG_TEXT)
+                i, foreground=FG_MUTED if self.lb_avail.get(i) in used else FG_TEXT
+            )
         if sel:
             counts = wt_split_steps(len(sel))
             cap = "" if len(sel) < WT_MAX_SELECTED else "   (step order full)"
-            self.lbl_alloc.config(text=f"{len(sel)} of {WT_MAX_SELECTED} families "
-                                       f"\u2192 " +
-                                  "   ".join(f"{n}: {c}" for n, c in zip(sel, counts))
-                                  + cap)
+            self.lbl_alloc.config(
+                text=f"{len(sel)} of {WT_MAX_SELECTED} families "
+                f"\u2192 " + "   ".join(f"{n}: {c}" for n, c in zip(sel, counts)) + cap
+            )
         else:
             self.lbl_alloc.config(
                 text=f"Nothing selected \u2013 move at least one family to the "
-                     f"right (up to {WT_MAX_SELECTED})")
+                f"right (up to {WT_MAX_SELECTED})"
+            )
         self._update_preview_label()
 
     # -- preview -----------------------------------------------------------
@@ -1148,8 +1419,7 @@ class SynthDialog(tk.Toplevel):
         # Only when nothing is running: clicking the family that is already
         # playing should not cut it off, and a switch stopped the previous one
         # back in _pick_preview.
-        if autoplay and self.var_autoplay.get() and not self.prev_playing \
-                and self.prev_family:
+        if autoplay and self.var_autoplay.get() and not self.prev_playing and self.prev_family:
             self._toggle_preview()
 
     def _status(self, text, kind="info"):
@@ -1159,8 +1429,7 @@ class SynthDialog(tk.Toplevel):
         to do something - so "the step order is full" read like a footnote
         and got missed. The tone now picks the colour.
         """
-        colors = {"info": FG_MUTED, "good": ACCENT_GREEN,
-                  "warn": ACCENT_ORANGE, "bad": ACCENT_RED}
+        colors = {"info": FG_MUTED, "good": ACCENT_GREEN, "warn": ACCENT_ORANGE, "bad": ACCENT_RED}
         self.lbl_status.config(text=text, fg=colors.get(kind, FG_MUTED))
 
     def _sync_delete_button(self):
@@ -1181,16 +1450,21 @@ class SynthDialog(tk.Toplevel):
             return
         in_order = name in self._selection()
         if not dark_askyesno(
-                "Delete Waveform",
-                f"Remove \"{name}\" from the saved waveforms?" +
-                ("\n\nIt is currently in the step order and will be taken out."
-                 if in_order else "") +
-                "\n\nWavetables already built with it are not affected.",
-                parent=self):
+            "Delete Waveform",
+            f'Remove "{name}" from the saved waveforms?'
+            + ("\n\nIt is currently in the step order and will be taken out." if in_order else "")
+            + "\n\nWavetables already built with it are not affected.",
+            parent=self,
+        ):
             return
         self.custom.pop(name, None)
-        save_drawn_library({n: e for n, e in self.custom.items()
-                            if isinstance(e, dict) and e.get("kind") == "draw"})
+        save_drawn_library(
+            {
+                n: e
+                for n, e in self.custom.items()
+                if isinstance(e, dict) and e.get("kind") == "draw"
+            }
+        )
         for i in reversed(range(self.lb_sel.size())):
             if self.lb_sel.get(i) == name:
                 self.lb_sel.delete(i)
@@ -1270,8 +1544,7 @@ class SynthDialog(tk.Toplevel):
         step = max(1, len(vals) // 220)
         pts = []
         for i in range(0, len(vals), step):
-            pts += [ox + i / (len(vals) - 1) * front_w,
-                    base_y + oy - vals[i] * amp]
+            pts += [ox + i / (len(vals) - 1) * front_w, base_y + oy - vals[i] * amp]
         return pts, ox, oy
 
     def _draw_morph(self):
@@ -1282,11 +1555,16 @@ class SynthDialog(tk.Toplevel):
         geo = self._morph_geometry()
         if geo is None:
             self._morph_cache = None
-            return          # too small to show anything meaningful
+            return  # too small to show anything meaningful
         w, h = geo[0], geo[1]
         if not self.prev_family:
-            c.create_text(w / 2, h / 2, text="Click a family to see its morph",
-                          fill=FG_MUTED, font=(UI_FAMILY, 8))
+            c.create_text(
+                w / 2,
+                h / 2,
+                text="Click a family to see its morph",
+                fill=FG_MUTED,
+                font=(UI_FAMILY, 8),
+            )
             self._morph_cache = None
             return
 
@@ -1295,8 +1573,9 @@ class SynthDialog(tk.Toplevel):
         try:
             shapes = self._morph_shapes(self.prev_family, shown)
         except Exception as e:
-            c.create_text(w / 2, h / 2, text=f"Could not render: {e}",
-                          fill=FG_MUTED, font=(UI_FAMILY, 8))
+            c.create_text(
+                w / 2, h / 2, text=f"Could not render: {e}", fill=FG_MUTED, font=(UI_FAMILY, 8)
+            )
             return
         self._morph_cache = (self.prev_family, shapes, total)
         line = readable_on(WAVE_COLOR, WAVE_BG, 7.0)
@@ -1313,12 +1592,11 @@ class SynthDialog(tk.Toplevel):
             col = blend_colors(line, WAVE_BG, 0.62 * far)
             poly = pts + [pts[-2], h, pts[0], h]
             c.create_polygon(*poly, fill=WAVE_BG, outline="")
-            c.create_line(*pts, fill=col, width=2 if idx == 0 else 1,
-                          tags=f"step{idx}")
-        c.create_text(4, h - 10, text=f"step 1", anchor="w",
-                      fill=FG_MUTED, font=(UI_FAMILY, 7))
-        c.create_text(w - 4, 10, text=f"step {total}", anchor="e",
-                      fill=FG_MUTED, font=(UI_FAMILY, 7))
+            c.create_line(*pts, fill=col, width=2 if idx == 0 else 1, tags=f"step{idx}")
+        c.create_text(4, h - 10, text="step 1", anchor="w", fill=FG_MUTED, font=(UI_FAMILY, 7))
+        c.create_text(
+            w - 4, 10, text=f"step {total}", anchor="e", fill=FG_MUTED, font=(UI_FAMILY, 7)
+        )
         self._highlight_morph_step(None)
 
     def _highlight_morph_step(self, frac):
@@ -1370,8 +1648,8 @@ class SynthDialog(tk.Toplevel):
         # has to.
         self.lbl_prev.config(
             text=f"{self.prev_family}   \u00b7   {WT_PREVIEW_SECONDS:.0f} s sweep "
-                 f"across {n} morph steps"
-                 + ("" if inlist else "   (count it would get once added)"))
+            f"across {n} morph steps" + ("" if inlist else "   (count it would get once added)")
+        )
 
     def _stop_preview(self):
         if self.prev_playing:
@@ -1397,8 +1675,7 @@ class SynthDialog(tk.Toplevel):
         midi, cycles, up = self._current_pitch()
         steps = self._preview_steps(self.prev_family)
         try:
-            audio = wt_render_sweep(self._resolve(self.prev_family),
-                                    midi, cycles, up, steps)
+            audio = wt_render_sweep(self._resolve(self.prev_family), midi, cycles, up, steps)
             sd.play(audio, WT_SR)
         except Exception as e:
             self._status(f"Preview failed: {e}", "bad")
@@ -1420,7 +1697,8 @@ class SynthDialog(tk.Toplevel):
         # a callback already queued when the cancel arrives.
         self._finish_job = self.after(
             int(WT_PREVIEW_SECONDS * 1000) + 250,
-            lambda t=self._prev_token: self._preview_finished(t))
+            lambda t=self._prev_token: self._preview_finished(t),
+        )
 
     def _tick_morph_marker(self, token):
         if token != getattr(self, "_prev_token", 0) or not self.prev_playing:
@@ -1445,7 +1723,7 @@ class SynthDialog(tk.Toplevel):
 
     def _preview_finished(self, token=None):
         if token is not None and token != getattr(self, "_prev_token", 0):
-            return          # belongs to a sweep that was replaced
+            return  # belongs to a sweep that was replaced
         self._finish_job = None
         self.prev_playing = False
         self._prev_token = getattr(self, "_prev_token", 0) + 1
@@ -1458,7 +1736,7 @@ class SynthDialog(tk.Toplevel):
     # -- apply -------------------------------------------------------------
 
     def _cancel(self):
-        self._stop_preview()        # also cancels the finish timer
+        self._stop_preview()  # also cancels the finish timer
         # A pending redraw would fire into a window that no longer exists.
         if getattr(self, "_morph_job", None):
             try:
@@ -1475,9 +1753,9 @@ class SynthDialog(tk.Toplevel):
     def _apply(self):
         sel = self._active_selection()
         if not sel:
-            dark_showwarning("Nothing selected",
-                             "Please choose at least one waveform family.",
-                             parent=self)
+            dark_showwarning(
+                "Nothing selected", "Please choose at least one waveform family.", parent=self
+            )
             return
         midi, cycles, up = self._current_pitch()
         self._stop_preview()

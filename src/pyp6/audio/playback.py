@@ -12,8 +12,6 @@ from pyp6.config import resource_path
 
 try:
     from pydub import AudioSegment
-    from pydub.silence import detect_leading_silence
-    from pydub.effects import normalize as pydub_normalize
 
     _bundle_ffmpeg_name = "ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg"
     _bundle_ffprobe_name = "ffprobe.exe" if sys.platform.startswith("win") else "ffprobe"
@@ -51,9 +49,10 @@ def warn_pydub_missing_once():
         return
     _pydub_warning_shown = True
     from pyp6.ui.dialogs_common import dark_showwarning
+
     dark_showwarning(
         "pydub/ffmpeg missing",
         "Sample rate, pitch and forced mono require pydub + ffmpeg.\n"
         "These settings are saved, but currently have no effect on "
-        "Play/Preview/Export while pydub/ffmpeg is missing."
+        "Play/Preview/Export while pydub/ffmpeg is missing.",
     )

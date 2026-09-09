@@ -1,8 +1,8 @@
 """SampleSlot: one pad in the bank grid, with its UI and audio state."""
 
 import os
-import uuid
 import tkinter as tk
+import uuid
 
 import numpy as np
 
@@ -21,32 +21,55 @@ try:
 except ImportError:
     AudioSegment = None
 
-from pyp6.constants import (
-    UI_FAMILY, BANKS, MAX_SECONDS, TARGET_RATES,
-    PITCH_MIN_CENTS, PITCH_MAX_CENTS, PITCH_STEP_CENTS,
-    PRM_TEMPLATES, WT_SEGMENTS, WT_SR,
-)
+import pyp6.config as _cfg
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_ORANGE, BORDER_COLOR, BORDER_LIGHT,
-    WAVE_BG, WAVE_COLOR,
-    BTN_BLUE, BTN_GREEN, BTN_ORANGE, BTN_PURPLE, BTN_RED,
+    ACCENT_BLUE,
+    ACCENT_ORANGE,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BORDER_LIGHT,
+    BTN_BLUE,
+    BTN_GREEN,
+    BTN_ORANGE,
+    BTN_PURPLE,
+    BTN_RED,
+    FG_MUTED,
+    FG_TEXT,
+    WAVE_BG,
+    WAVE_COLOR,
+)
+from pyp6.audio.conversion import apply_pitch_shift, convert_to_wav_if_needed
+from pyp6.audio.info import compute_truncate_fraction, get_wav_info
+from pyp6.audio.playback import PYDUB_AVAILABLE, warn_pydub_missing_once
+from pyp6.config import save_last_sample_dir, wavetable_path
+from pyp6.constants import (
+    BANKS,
+    MAX_SECONDS,
+    PITCH_MAX_CENTS,
+    PITCH_MIN_CENTS,
+    PITCH_STEP_CENTS,
+    PRM_TEMPLATES,
+    TARGET_RATES,
+    UI_FAMILY,
+    WT_SEGMENTS,
+)
+from pyp6.synth.engine import (
+    render_prm,
+    wavetable_summary,
+    write_wavetable_files,
+    write_wavetable_map,
 )
 from pyp6.theme import readable_on
-import pyp6.config as _cfg
-from pyp6.config import wavetable_path, save_last_sample_dir
-from pyp6.audio.playback import PYDUB_AVAILABLE, warn_pydub_missing_once
-from pyp6.audio.info import get_wav_info, compute_truncate_fraction
-from pyp6.audio.conversion import convert_to_wav_if_needed, apply_pitch_shift
-from pyp6.synth.engine import (
-    render_prm, write_wavetable_files, write_wavetable_map, wavetable_summary,
-)
-from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel
-from pyp6.ui.waveform import draw_waveform_on_canvas, draw_truncate_overlay
 from pyp6.ui.dialogs_common import (
-    style_label, style_checkbutton, add_tooltip,
-    dark_showinfo, dark_showwarning, dark_showerror, dark_askyesno,
+    add_tooltip,
+    dark_askyesno,
+    dark_showerror,
+    style_checkbutton,
+    style_label,
 )
+from pyp6.ui.waveform import draw_truncate_overlay, draw_waveform_on_canvas
+from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel
 
 
 class SampleSlot:
@@ -64,45 +87,63 @@ class SampleSlot:
         self.wt_patch = tk.StringVar(value="Init")
         self.wt_poly = tk.BooleanVar(value=False)
 
-        self.panel = RoundedPanel(parent, title=f"PAD_{pad_num}",
-                                   parent_bg=parent.cget("bg"), panel_bg=BG_PANEL,
-                                   border=BORDER_LIGHT, radius=14, title_fg=ACCENT_BLUE)
-        self.panel.grid(row=(pad_num - 1) // 3, column=(pad_num - 1) % 3,
-                         padx=6, pady=6, sticky="nsew")
+        self.panel = RoundedPanel(
+            parent,
+            title=f"PAD_{pad_num}",
+            parent_bg=parent.cget("bg"),
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
+        self.panel.grid(
+            row=(pad_num - 1) // 3, column=(pad_num - 1) % 3, padx=6, pady=6, sticky="nsew"
+        )
         self.frame = self.panel.body
 
-        self.label = tk.Label(self.frame, text="No sample loaded", width=30,
-                               anchor="w")
+        self.label = tk.Label(self.frame, text="No sample loaded", width=30, anchor="w")
         style_label(self.label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 9))
         self.label.pack(fill="x")
         self._bind_internal_drag(self.label)
         self._bind_internal_drag(self.panel.canvas)
-        drag_help = ("Drag this name onto another pad to swap the two pads (including "
-                     "their rate, pitch and mono settings). The target pad is outlined "
-                     "in orange while you drag.")
+        drag_help = (
+            "Drag this name onto another pad to swap the two pads (including "
+            "their rate, pitch and mono settings). The target pad is outlined "
+            "in orange while you drag."
+        )
         # Lazy import to avoid circular dependency
         from pyp6._about_helpers import DND_AVAILABLE
+
         if DND_AVAILABLE:
-            drag_help += ("\n\nYou can also drop an audio file from your file manager "
-                          "straight onto a pad.")
+            drag_help += (
+                "\n\nYou can also drop an audio file from your file manager straight onto a pad."
+            )
         add_tooltip(self.label, drag_help)
-        add_tooltip(self.panel.canvas,
-                    "Drag the pad frame or the sample name onto another pad to swap "
-                    "the two pads.")
+        add_tooltip(
+            self.panel.canvas,
+            "Drag the pad frame or the sample name onto another pad to swap the two pads.",
+        )
 
         self.mini_wave_width = 240
         self.mini_wave_height = 50
-        self.mini_wave_canvas = tk.Canvas(self.frame, bg=WAVE_BG,
-                                           width=self.mini_wave_width, height=self.mini_wave_height,
-                                           highlightthickness=0, cursor="hand2")
+        self.mini_wave_canvas = tk.Canvas(
+            self.frame,
+            bg=WAVE_BG,
+            width=self.mini_wave_width,
+            height=self.mini_wave_height,
+            highlightthickness=0,
+            cursor="hand2",
+        )
         self.mini_wave_canvas.pack(fill="x", pady=(2, 4))
         self.mini_wave_canvas.bind("<Configure>", self._redraw_mini_waveform_at_current_width)
         self.mini_wave_canvas.bind("<Button-1>", self.open_waveform_view)
-        add_tooltip(self.mini_wave_canvas,
-                    "Click the waveform to open the editor for this sample: trim markers, "
-                    "zoom, normalize and fade in/out, then \"Apply to Pad\". "
-                    "An orange shaded area marks the part the P-6 would cut off at the "
-                    "current rate, pitch and mono setting.")
+        add_tooltip(
+            self.mini_wave_canvas,
+            "Click the waveform to open the editor for this sample: trim markers, "
+            'zoom, normalize and fade in/out, then "Apply to Pad". '
+            "An orange shaded area marks the part the P-6 would cut off at the "
+            "current rate, pitch and mono setting.",
+        )
         self._mini_wave_cache = None
 
         rate_row = tk.Frame(self.frame, bg=BG_PANEL)
@@ -111,14 +152,22 @@ class SampleSlot:
         rate_lbl = tk.Label(rate_row, text="Sample Rate:")
         style_label(rate_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         rate_lbl.pack(side="left")
-        rate_menu = RoundedDropdown(rate_row, self.target_rate, TARGET_RATES,
-                       command=self.on_rate_changed,
-                       parent_bg=BG_PANEL, width=90, height=26, font=(UI_FAMILY, 9))
+        rate_menu = RoundedDropdown(
+            rate_row,
+            self.target_rate,
+            TARGET_RATES,
+            command=self.on_rate_changed,
+            parent_bg=BG_PANEL,
+            width=90,
+            height=26,
+            font=(UI_FAMILY, 9),
+        )
         rate_menu.pack(side="left", padx=4)
 
         self.mono_var = tk.BooleanVar(value=False)
-        self.mono_cb = tk.Checkbutton(rate_row, text="Mono", variable=self.mono_var,
-                                       command=self.on_mono_changed)
+        self.mono_cb = tk.Checkbutton(
+            rate_row, text="Mono", variable=self.mono_var, command=self.on_mono_changed
+        )
         style_checkbutton(self.mono_cb)
         self.mono_cb.config(bg=BG_PANEL, activebackground=BG_PANEL)
         self.mono_cb.pack(side="left", padx=(6, 0))
@@ -129,28 +178,61 @@ class SampleSlot:
         pitch_lbl = tk.Label(pitch_row, text="Pitch:")
         style_label(pitch_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         pitch_lbl.pack(side="left")
-        pitch_minus_btn = RoundedButton(pitch_row, text="\u2212", command=self.pitch_step_down,
-                                         bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                         width=24, height=24, font=(UI_FAMILY, 9, "bold"))
+        pitch_minus_btn = RoundedButton(
+            pitch_row,
+            text="\u2212",
+            command=self.pitch_step_down,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=24,
+            height=24,
+            font=(UI_FAMILY, 9, "bold"),
+        )
         pitch_minus_btn.pack(side="left", padx=(4, 2))
-        self.pitch_entry = tk.Entry(pitch_row, width=6, justify="center", bg=BG_INPUT, fg=FG_TEXT,
-                                     insertbackground=FG_TEXT, relief="flat",
-                                     highlightthickness=1, highlightbackground=BORDER_COLOR,
-                                     highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 9))
+        self.pitch_entry = tk.Entry(
+            pitch_row,
+            width=6,
+            justify="center",
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 9),
+        )
         self.pitch_entry.insert(0, "0")
         self.pitch_entry.pack(side="left")
         self.pitch_entry.bind("<Return>", self.on_pitch_entry_commit)
         self.pitch_entry.bind("<FocusOut>", self.on_pitch_entry_commit)
-        pitch_plus_btn = RoundedButton(pitch_row, text="+", command=self.pitch_step_up,
-                                        bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                        width=24, height=24, font=(UI_FAMILY, 9, "bold"))
+        pitch_plus_btn = RoundedButton(
+            pitch_row,
+            text="+",
+            command=self.pitch_step_up,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=24,
+            height=24,
+            font=(UI_FAMILY, 9, "bold"),
+        )
         pitch_plus_btn.pack(side="left", padx=(2, 4))
         cents_lbl = tk.Label(pitch_row, text="cents")
         style_label(cents_lbl, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         cents_lbl.pack(side="left")
-        pitch_reset_btn = RoundedButton(pitch_row, text="Reset", command=self.pitch_reset,
-                                         bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                         width=55, height=24, font=(UI_FAMILY, 8, "bold"))
+        pitch_reset_btn = RoundedButton(
+            pitch_row,
+            text="Reset",
+            command=self.pitch_reset,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=55,
+            height=24,
+            font=(UI_FAMILY, 8, "bold"),
+        )
         pitch_reset_btn.pack(side="left", padx=(6, 0))
 
         # Replaces rate/pitch/mono once this pad holds a wavetable: those
@@ -161,17 +243,25 @@ class SampleSlot:
         style_label(patch_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         patch_lbl.pack(side="left")
         self.wt_patch_menu = RoundedDropdown(
-            self.synth_row, self.wt_patch, list(PRM_TEMPLATES),
-            command=self.on_wt_patch_changed, parent_bg=BG_PANEL,
-            width=92, height=26, font=(UI_FAMILY, 9))
+            self.synth_row,
+            self.wt_patch,
+            list(PRM_TEMPLATES),
+            command=self.on_wt_patch_changed,
+            parent_bg=BG_PANEL,
+            width=92,
+            height=26,
+            font=(UI_FAMILY, 9),
+        )
         self.wt_patch_menu.pack(side="left", padx=4)
-        add_tooltip(self.wt_patch_menu,
-                    "Filter and envelope settings written into this pad's .PRM file. "
-                    "Init is the plain looping voice; the others were captured dry from "
-                    "the device. Changing this rewrites the .PRM immediately.")
-        self.wt_poly_cb = tk.Checkbutton(self.synth_row, text="Poly",
-                                         variable=self.wt_poly,
-                                         command=self.on_wt_poly_changed)
+        add_tooltip(
+            self.wt_patch_menu,
+            "Filter and envelope settings written into this pad's .PRM file. "
+            "Init is the plain looping voice; the others were captured dry from "
+            "the device. Changing this rewrites the .PRM immediately.",
+        )
+        self.wt_poly_cb = tk.Checkbutton(
+            self.synth_row, text="Poly", variable=self.wt_poly, command=self.on_wt_poly_changed
+        )
         style_checkbutton(self.wt_poly_cb)
         self.wt_poly_cb.config(bg=BG_PANEL, activebackground=BG_PANEL)
         self.wt_poly_cb.pack(side="left", padx=(8, 0))
@@ -182,53 +272,105 @@ class SampleSlot:
         # the real row heights around.
         self.wt_spacer = tk.Frame(self.frame, bg=BG_PANEL, height=1)
         self.wt_spacer.pack_propagate(False)
-        add_tooltip(self.wt_poly_cb,
-                    "Polyphonic playback (MONO_POLY in the .PRM). Lets you play chords "
-                    "on this pad instead of one note at a time.")
+        add_tooltip(
+            self.wt_poly_cb,
+            "Polyphonic playback (MONO_POLY in the .PRM). Lets you play chords "
+            "on this pad instead of one note at a time.",
+        )
 
         btn_row = tk.Frame(self.frame, bg=BG_PANEL, height=28)
         btn_row.pack(fill="x", pady=4)
         # Pinned: a wavetable pad has one row less than a sample pad, and the
         # leftover space in the panel must not end up inflating this row.
         btn_row.pack_propagate(False)
-        self.load_btn = load_btn = RoundedButton(btn_row, text="Load", command=self.load_sample,
-                                  bg=BTN_PURPLE, fg="#FFFFFF", parent_bg=BG_PANEL, width=56, height=28)
+        self.load_btn = load_btn = RoundedButton(
+            btn_row,
+            text="Load",
+            command=self.load_sample,
+            bg=BTN_PURPLE,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=56,
+            height=28,
+        )
         load_btn.pack(side="left", padx=2)
-        add_tooltip(load_btn,
-                    "Opens the sample browser with preview and waveform. There you can "
-                    "drag the green/red markers to load only the marked region onto "
-                    "this pad. WAV and (with ffmpeg) MP3.")
-        self.play_btn = RoundedButton(btn_row, text="\u25b6", command=self.toggle_play_pad,
-                                       bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_PANEL,
-                                       width=36, height=28, state="disabled", font=(UI_FAMILY, 11, "bold"))
+        add_tooltip(
+            load_btn,
+            "Opens the sample browser with preview and waveform. There you can "
+            "drag the green/red markers to load only the marked region onto "
+            "this pad. WAV and (with ffmpeg) MP3.",
+        )
+        self.play_btn = RoundedButton(
+            btn_row,
+            text="\u25b6",
+            command=self.toggle_play_pad,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=36,
+            height=28,
+            state="disabled",
+            font=(UI_FAMILY, 11, "bold"),
+        )
         self.play_btn.pack(side="left", padx=2)
-        add_tooltip(self.play_btn,
-                    "Plays this pad as it will sound on the P-6 (with rate, pitch and "
-                    "mono applied) and shows it in the large waveform below.")
-        self.remove_btn = RoundedButton(btn_row, text="\u23cf", command=self.remove_sample,
-                                         bg=BTN_RED, fg="#FFFFFF", parent_bg=BG_PANEL,
-                                         width=36, height=28, state="disabled", font=(UI_FAMILY, 11, "bold"))
+        add_tooltip(
+            self.play_btn,
+            "Plays this pad as it will sound on the P-6 (with rate, pitch and "
+            "mono applied) and shows it in the large waveform below.",
+        )
+        self.remove_btn = RoundedButton(
+            btn_row,
+            text="\u23cf",
+            command=self.remove_sample,
+            bg=BTN_RED,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=36,
+            height=28,
+            state="disabled",
+            font=(UI_FAMILY, 11, "bold"),
+        )
         self.remove_btn.pack(side="left", padx=2)
-        add_tooltip(self.remove_btn,
-                    "Clears this pad in the app. The source file itself is not deleted. "
-                    "Can be undone with Ctrl+Z.")
-        self.chop_btn = chop_btn = RoundedButton(btn_row, text="Chop", command=self.open_chop,
-                                  bg=BTN_ORANGE, fg="#FFFFFF", parent_bg=BG_PANEL,
-                                  width=56, height=28)
+        add_tooltip(
+            self.remove_btn,
+            "Clears this pad in the app. The source file itself is not deleted. "
+            "Can be undone with Ctrl+Z.",
+        )
+        self.chop_btn = chop_btn = RoundedButton(
+            btn_row,
+            text="Chop",
+            command=self.open_chop,
+            bg=BTN_ORANGE,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=56,
+            height=28,
+        )
         chop_btn.pack(side="left", padx=2)
-        add_tooltip(chop_btn,
-                    "Builds a multisample: several samples are lined up in equal slices "
-                    "into one file that the P-6 plays back per slice. The result lands "
-                    "on this pad.")
-        self.synth_btn = RoundedButton(btn_row, text="Synth", command=self.open_synth,
-                                       bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_PANEL,
-                                       width=56, height=28)
+        add_tooltip(
+            chop_btn,
+            "Builds a multisample: several samples are lined up in equal slices "
+            "into one file that the P-6 plays back per slice. The result lands "
+            "on this pad.",
+        )
+        self.synth_btn = RoundedButton(
+            btn_row,
+            text="Synth",
+            command=self.open_synth,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=56,
+            height=28,
+        )
         self.synth_btn.pack(side="left", padx=2)
-        add_tooltip(self.synth_btn,
-                    "Turns this pad into a wavetable oscillator and makes the P-6 a "
-                    "synthesizer: 255 single-cycle waveforms in one sample, stepped "
-                    "through with the START control while SIZE stays at 1. Builds the "
-                    "WAV and its .PRM settings file in one go.")
+        add_tooltip(
+            self.synth_btn,
+            "Turns this pad into a wavetable oscillator and makes the P-6 a "
+            "synthesizer: 255 single-cycle waveforms in one sample, stepped "
+            "through with the START control while SIZE stays at 1. Builds the "
+            "WAV and its .PRM settings file in one go.",
+        )
 
     # ---------------------------------------------------------------
     # Wavetable synth
@@ -244,9 +386,11 @@ class SampleSlot:
         """Opens the wavetable builder for this pad, pre-filled with whatever
         was used last time so settings can be reviewed and adjusted."""
         from pyp6.ui.dialogs.synth import SynthDialog
+
         cfg = (self.wavetable or {}).get("config")
-        dlg = SynthDialog(self.app.root, self.app, self._bank_letter(),
-                          self.pad_num, initial_config=cfg)
+        dlg = SynthDialog(
+            self.app.root, self.app, self._bank_letter(), self.pad_num, initial_config=cfg
+        )
         self.app.root.wait_window(dlg)
         if not dlg.result:
             return
@@ -256,18 +400,23 @@ class SampleSlot:
         # Unique per build. A fixed wavetable_<bank><pad> name breaks as soon
         # as two wavetable pads are swapped: the next build on one pad would
         # silently overwrite the file the other pad is now pointing at.
-        return wavetable_path(f"wavetable_{self._bank_letter()}{self.pad_num}_"
-                              f"{uuid.uuid4().hex[:8]}.WAV")
+        return wavetable_path(
+            f"wavetable_{self._bank_letter()}{self.pad_num}_{uuid.uuid4().hex[:8]}.WAV"
+        )
 
     def _apply_wavetable(self, result):
-        cfg, pcm, rows, meta = (result["config"], result["pcm"],
-                                result["rows"], result["meta"])
+        cfg, pcm, rows, meta = (result["config"], result["pcm"], result["rows"], result["meta"])
         bank = self._bank_letter()
         wav_path = self._wavetable_wav_path()
-        prm_text = render_prm(bank, self.pad_num, 0, meta["L"],
-                              meta["total_frames"],
-                              template=self.wt_patch.get(),
-                              poly=self.wt_poly.get())
+        prm_text = render_prm(
+            bank,
+            self.pad_num,
+            0,
+            meta["L"],
+            meta["total_frames"],
+            template=self.wt_patch.get(),
+            poly=self.wt_poly.get(),
+        )
         try:
             write_wavetable_files(pcm, wav_path, prm_text)
         except Exception as e:
@@ -281,12 +430,15 @@ class SampleSlot:
         # along in every undo snapshot and preset manifest for no benefit.
         # keep_settings=True: rate/pitch/mono must not be re-detected, the
         # table is already 44100 Hz mono and resampling would detune it.
-        self.set_file(wav_path, display_name=f"Wavetable {cfg['note']} "
-                                             f"({cfg['register']})",
-                      keep_settings=True)
+        self.set_file(
+            wav_path,
+            display_name=f"Wavetable {cfg['note']} ({cfg['register']})",
+            keep_settings=True,
+        )
         if self.filepath != wav_path:
-            dark_showerror("Wavetable", "The generated wavetable could not be "
-                                        "loaded onto this pad.")
+            dark_showerror(
+                "Wavetable", "The generated wavetable could not be loaded onto this pad."
+            )
             return
         # No absolute path is kept here on purpose: pad state travels into
         # preset.json, which people swap around. self.filepath already
@@ -299,25 +451,30 @@ class SampleSlot:
         self.mono_var.set(False)
         self._sync_wavetable_ui()
         if self.mini_wave_canvas.winfo_exists():
-            add_tooltip(self.mini_wave_canvas,
-                        "This pad holds a generated wavetable. Use Synth to review or "
-                        "rebuild it; the waveform editor is disabled because trimming "
-                        "would break the 255-segment raster.")
+            add_tooltip(
+                self.mini_wave_canvas,
+                "This pad holds a generated wavetable. Use Synth to review or "
+                "rebuild it; the waveform editor is disabled because trimming "
+                "would break the 255-segment raster.",
+            )
 
         if cfg.get("save_map"):
             from pyp6.ui.dialogs.file import FileSaveDialog
-            dlg = FileSaveDialog(self.app.root, title="Save waveform overview",
-                                 initial_dir=getattr(self.app, "import_root", None),
-                                 initial_file=f"wavetable_{bank}{self.pad_num}_map.csv",
-                                 extension=".csv")
+
+            dlg = FileSaveDialog(
+                self.app.root,
+                title="Save waveform overview",
+                initial_dir=getattr(self.app, "import_root", None),
+                initial_file=f"wavetable_{bank}{self.pad_num}_map.csv",
+                extension=".csv",
+            )
             self.app.root.wait_window(dlg)
             path = dlg.result_path
             if path:
                 try:
                     write_wavetable_map(rows, meta, path)
                 except Exception as e:
-                    dark_showerror("Waveform overview",
-                                   f"Could not write the overview:\n{e}")
+                    dark_showerror("Waveform overview", f"Could not write the overview:\n{e}")
 
     def _rewrite_prm(self):
         """Re-writes only the .PRM next to the wavetable WAV. Used when the
@@ -334,10 +491,17 @@ class SampleSlot:
             return
         try:
             with open(os.path.splitext(wav_path)[0] + ".PRM", "w", newline="") as f:
-                f.write(render_prm(self._bank_letter(), self.pad_num, 0,
-                                   meta["L"], meta["total_frames"],
-                                   template=self.wt_patch.get(),
-                                   poly=self.wt_poly.get()))
+                f.write(
+                    render_prm(
+                        self._bank_letter(),
+                        self.pad_num,
+                        0,
+                        meta["L"],
+                        meta["total_frames"],
+                        template=self.wt_patch.get(),
+                        poly=self.wt_poly.get(),
+                    )
+                )
         except Exception as e:
             print(f"PAD_{self.pad_num}: could not rewrite .PRM: {e}")
 
@@ -361,8 +525,7 @@ class SampleSlot:
         try:
             self.frame.update_idletasks()
             have = self.synth_row.winfo_reqheight() + 8
-            want = (self.rate_row.winfo_reqheight() + 8
-                    + self.pitch_row.winfo_reqheight() + 4)
+            want = self.rate_row.winfo_reqheight() + 8 + self.pitch_row.winfo_reqheight() + 4
             gap = max(0, want - have)
         except tk.TclError:
             gap = 30  # widget gone mid-teardown; a sensible row height
@@ -375,7 +538,7 @@ class SampleSlot:
     def _sync_wavetable_ui(self):
         """Switches the pad between sample mode and wavetable mode."""
         if not hasattr(self, "synth_btn"):
-            return          # called before __init__ finished building the row
+            return  # called before __init__ finished building the row
         wt = self.wavetable
         if wt:
             # PHRASE encodes bank and pad, so a bank switch or a pad swap
@@ -413,6 +576,7 @@ class SampleSlot:
         """Replaces the mini waveform with the table's key facts - the trace
         of 255 stacked single cycles is a solid block and says nothing."""
         import tkinter.font as tkfont
+
         c = self.mini_wave_canvas
         c.delete("all")
         lines = wavetable_summary(self.wavetable["config"], self.wavetable["meta"])
@@ -433,12 +597,12 @@ class SampleSlot:
                 break
             size = candidate
 
-        c.create_text(6, 4, text="WAVETABLE", anchor="nw", fill=text_col,
-                      font=(UI_FAMILY, 6, "bold"))
+        c.create_text(
+            6, 4, text="WAVETABLE", anchor="nw", fill=text_col, font=(UI_FAMILY, 6, "bold")
+        )
         y = 18
         for line in lines:
-            c.create_text(6, y, text=line, anchor="nw", fill=text_col,
-                          font=(UI_FAMILY, size))
+            c.create_text(6, y, text=line, anchor="nw", fill=text_col, font=(UI_FAMILY, size))
             y += size + 6
 
     def _set_pitch(self, value):
@@ -493,7 +657,7 @@ class SampleSlot:
             dark_showerror(
                 "Unsupported File",
                 f"'{os.path.basename(path)}' could not be converted to WAV and "
-                "cannot be used.\n\nMP3 support requires pydub + ffmpeg."
+                "cannot be used.\n\nMP3 support requires pydub + ffmpeg.",
             )
             return
         self.filepath = path
@@ -522,9 +686,11 @@ class SampleSlot:
                 closest_rate = min(TARGET_RATES, key=lambda r: abs(r - detected_rate))
                 self.target_rate.set(closest_rate)
             except Exception as e:
-                print(f"Could not detect sample rate for PAD_{self.pad_num}: "
-                      f"{type(e).__name__}: {e or 'file is empty or truncated'} "
-                      f"({path})")
+                print(
+                    f"Could not detect sample rate for PAD_{self.pad_num}: "
+                    f"{type(e).__name__}: {e or 'file is empty or truncated'} "
+                    f"({path})"
+                )
 
             self.pitch_cents.set(0)
             self.pitch_entry.delete(0, tk.END)
@@ -540,13 +706,17 @@ class SampleSlot:
         if hasattr(self.app, "update_pad_warnings"):
             self.app.update_pad_warnings()
         if hasattr(self.app, "stop_and_refresh_waveform_for"):
-            self.app.stop_and_refresh_waveform_for(self.filepath, self._current_max_seconds(),
-                                                     self.pitch_cents.get())
+            self.app.stop_and_refresh_waveform_for(
+                self.filepath, self._current_max_seconds(), self.pitch_cents.get()
+            )
 
     def get_export_ready_path(self):
         from pyp6.audio.conversion import compute_export_ready_path
+
         force_mono = self.effective_mono()
-        return compute_export_ready_path(self.filepath, self.target_rate.get(), self.pitch_cents.get(), force_mono)
+        return compute_export_ready_path(
+            self.filepath, self.target_rate.get(), self.pitch_cents.get(), force_mono
+        )
 
     def get_state(self):
         """Snapshot of this pad's current settings, used to remember it
@@ -576,12 +746,17 @@ class SampleSlot:
             # the app, a stale preset reference, etc.) - clear the pad
             # instead of leaving it in a broken half-loaded state where
             # rate detection etc. would silently fail.
-            print(f"PAD_{self.pad_num}: referenced file no longer exists, clearing pad: "
-                  f"{state['filepath']}")
+            print(
+                f"PAD_{self.pad_num}: referenced file no longer exists, clearing pad: "
+                f"{state['filepath']}"
+            )
             self.clear_pad()
             return
-        self.set_file(state["filepath"], from_sync=state.get("from_sync", False),
-                       display_name=state.get("display_name"))
+        self.set_file(
+            state["filepath"],
+            from_sync=state.get("from_sync", False),
+            display_name=state.get("display_name"),
+        )
         # set_file() auto-detects rate and resets pitch to 0 - restore the
         # saved values on top of that:
         rate = state.get("target_rate")
@@ -616,7 +791,7 @@ class SampleSlot:
         self.wavetable = None
         self.wt_patch.set("Init")
         self.wt_poly.set(False)
-        self._sync_wavetable_ui()   # ends in _sync_pad_buttons()
+        self._sync_wavetable_ui()  # ends in _sync_pad_buttons()
         self.update_mono_lock()
 
     def _bind_internal_drag(self, widget):
@@ -666,6 +841,7 @@ class SampleSlot:
 
     def load_sample(self):
         from pyp6.ui.dialogs.audio import AudioPreviewDialog
+
         if hasattr(self.app, "stop_playback_waveform"):
             self.app.stop_playback_waveform()
         # Prefer the last folder the user actually browsed to (shared across
@@ -689,12 +865,15 @@ class SampleSlot:
             # os.path.dirname(selected_path) - if the sample was trimmed,
             # selected_path points into the app temp folder, which
             # would otherwise corrupt LAST_SAMPLE_DIR for every pad after.
-            chosen_dir = getattr(dialog, "current_dir", None) or os.path.dirname(dialog.selected_path)
+            chosen_dir = getattr(dialog, "current_dir", None) or os.path.dirname(
+                dialog.selected_path
+            )
             _cfg.LAST_SAMPLE_DIR = chosen_dir
             save_last_sample_dir(chosen_dir)
 
     def open_chop(self):
         from pyp6.ui.dialogs.audio import ChopDialog
+
         if hasattr(self.app, "stop_playback_waveform"):
             self.app.stop_playback_waveform()
         initial_dir = _cfg.LAST_SAMPLE_DIR if _cfg.LAST_SAMPLE_DIR else None
@@ -715,7 +894,11 @@ class SampleSlot:
         active bank's 'Force Mono (this bank)' switch is on, or because
         this pad's own Mono checkbox is checked."""
         bank = self.app.current_bank.get() if hasattr(self.app, "current_bank") else None
-        global_force = self.app.bank_force_mono(bank) if bank and hasattr(self.app, "bank_force_mono") else False
+        global_force = (
+            self.app.bank_force_mono(bank)
+            if bank and hasattr(self.app, "bank_force_mono")
+            else False
+        )
         return global_force or self.mono_var.get()
 
     def update_mono_lock(self):
@@ -723,7 +906,11 @@ class SampleSlot:
         Force Mono switch is on (it's already forced, so the individual
         choice doesn't matter until that bank's switch is off again)."""
         bank = self.app.current_bank.get() if hasattr(self.app, "current_bank") else None
-        global_force = self.app.bank_force_mono(bank) if bank and hasattr(self.app, "bank_force_mono") else False
+        global_force = (
+            self.app.bank_force_mono(bank)
+            if bank and hasattr(self.app, "bank_force_mono")
+            else False
+        )
         self.mono_cb.config(state="disabled" if global_force else "normal")
 
     def on_mono_changed(self):
@@ -770,11 +957,12 @@ class SampleSlot:
             return
         zones = self._wavetable_zones()
         if zones and hasattr(self.app, "show_wavetable_zones"):
-            self.app.show_wavetable_zones(self.pad_num, zones,
-                                          os.path.basename(self.filepath or "")
-                                          or "Wavetable")
-        elif getattr(self.app, "main_wave_zones", None) and \
-                hasattr(self.app, "clear_playback_waveform"):
+            self.app.show_wavetable_zones(
+                self.pad_num, zones, os.path.basename(self.filepath or "") or "Wavetable"
+            )
+        elif getattr(self.app, "main_wave_zones", None) and hasattr(
+            self.app, "clear_playback_waveform"
+        ):
             # Was a wavetable pad a moment ago and is not one any more.
             self.app.clear_playback_waveform()
 
@@ -792,7 +980,7 @@ class SampleSlot:
         nothing and is the only quick route back to the parameters.
         """
         if not hasattr(self, "synth_btn"):
-            return          # called before __init__ finished building the row
+            return  # called before __init__ finished building the row
         filled = bool(self.filepath)
         is_wt = bool(self.wavetable)
 
@@ -823,7 +1011,7 @@ class SampleSlot:
         if not L or len(data) < L * WT_SEGMENTS:
             return data
         tail = data.shape[1:]
-        seg = data[:L * WT_SEGMENTS].reshape((WT_SEGMENTS, L) + tail)
+        seg = data[: L * WT_SEGMENTS].reshape((WT_SEGMENTS, L) + tail)
         return np.repeat(seg, reps, axis=0).reshape((-1,) + tail)
 
     def _wavetable_zones(self):
@@ -840,10 +1028,15 @@ class SampleSlot:
         if not hasattr(self.app, "show_playback_waveform"):
             return
         name = os.path.basename(self.filepath) if self.filepath else ""
-        self.app.show_playback_waveform(samples, fs, name, self._current_max_seconds(),
-                                         source_path=self.filepath,
-                                         zones=self._wavetable_zones(),
-                                         offset_frac=offset_frac)
+        self.app.show_playback_waveform(
+            samples,
+            fs,
+            name,
+            self._current_max_seconds(),
+            source_path=self.filepath,
+            zones=self._wavetable_zones(),
+            offset_frac=offset_frac,
+        )
         if hasattr(self.app, "highlight_playing_pad"):
             self.app.highlight_playing_pad(self.pad_num)
 
@@ -854,8 +1047,7 @@ class SampleSlot:
             # the click still answers "what is on this pad".
             zones = self._wavetable_zones()
             if zones and hasattr(self.app, "show_wavetable_zones"):
-                self.app.show_wavetable_zones(self.pad_num, zones,
-                                              self.display_name or "Wavetable")
+                self.app.show_wavetable_zones(self.pad_num, zones, self.display_name or "Wavetable")
             return
         if not (self.filepath and os.path.exists(self.filepath)):
             return
@@ -863,11 +1055,13 @@ class SampleSlot:
         if hasattr(self.app, "stop_playback_waveform"):
             self.app.stop_playback_waveform()
         from pyp6.ui.dialogs.pad import PadWaveformViewDialog
+
         PadWaveformViewDialog(self.app.root, self.app, self.pad_num, self.filepath, name)
 
     def toggle_play_pad(self):
-        currently_playing = (getattr(self.app, "_currently_playing_pad", None) == self.pad_num
-                              and getattr(self.app, "main_wave_is_playing", False))
+        currently_playing = getattr(
+            self.app, "_currently_playing_pad", None
+        ) == self.pad_num and getattr(self.app, "main_wave_is_playing", False)
         if currently_playing:
             self.app.stop_playback_waveform()
         else:
@@ -954,7 +1148,7 @@ class SampleSlot:
         if not self.filepath:
             return
         self._seek_frac = frac
-        self.play_sample()      # already begins with sd.stop()
+        self.play_sample()  # already begins with sd.stop()
 
     def update_mini_waveform(self):
         """Small static waveform preview for this pad - no playhead, just a
@@ -977,8 +1171,9 @@ class SampleSlot:
         except Exception:
             return
         force_mono = self.effective_mono()
-        cut_frac = compute_truncate_fraction(self.filepath, self.target_rate.get(),
-                                             self.pitch_cents.get(), force_mono)
+        cut_frac = compute_truncate_fraction(
+            self.filepath, self.target_rate.get(), self.pitch_cents.get(), force_mono
+        )
         self._mini_wave_cache = (data, force_mono, cut_frac)
         self._redraw_mini_waveform_at_current_width()
 
@@ -1000,24 +1195,45 @@ class SampleSlot:
         color = WAVE_COLOR
         if data.ndim > 1 and data.shape[1] >= 2 and not force_mono:
             half_h = self.mini_wave_height / 2.0
-            draw_waveform_on_canvas(self.mini_wave_canvas, data[:, 0], 0.0, 1.0,
-                                     width_px, half_h, color=color,
-                                     tag="waveform", y_offset=0, clear=True)
-            draw_waveform_on_canvas(self.mini_wave_canvas, data[:, 1], 0.0, 1.0,
-                                     width_px, half_h, color=color,
-                                     tag="waveform", y_offset=half_h, clear=False)
-            self.mini_wave_canvas.create_line(0, half_h, width_px, half_h,
-                                               fill=BORDER_COLOR, width=1, tags="waveform")
+            draw_waveform_on_canvas(
+                self.mini_wave_canvas,
+                data[:, 0],
+                0.0,
+                1.0,
+                width_px,
+                half_h,
+                color=color,
+                tag="waveform",
+                y_offset=0,
+                clear=True,
+            )
+            draw_waveform_on_canvas(
+                self.mini_wave_canvas,
+                data[:, 1],
+                0.0,
+                1.0,
+                width_px,
+                half_h,
+                color=color,
+                tag="waveform",
+                y_offset=half_h,
+                clear=False,
+            )
+            self.mini_wave_canvas.create_line(
+                0, half_h, width_px, half_h, fill=BORDER_COLOR, width=1, tags="waveform"
+            )
         else:
             mono = data.mean(axis=1) if data.ndim > 1 else data
-            draw_waveform_on_canvas(self.mini_wave_canvas, mono, 0.0, 1.0,
-                                     width_px, self.mini_wave_height, color=color)
+            draw_waveform_on_canvas(
+                self.mini_wave_canvas, mono, 0.0, 1.0, width_px, self.mini_wave_height, color=color
+            )
         # Drawn last so it sits on top of the trace. The mini view is never
         # zoomed, so the fraction maps straight onto the canvas width.
         self.mini_wave_canvas.delete("truncate")
         if cut_frac is not None:
-            draw_truncate_overlay(self.mini_wave_canvas, cut_frac * width_px,
-                                   width_px, self.mini_wave_height)
+            draw_truncate_overlay(
+                self.mini_wave_canvas, cut_frac * width_px, width_px, self.mini_wave_height
+            )
 
     def remove_sample(self):
         if self.filepath:
@@ -1028,13 +1244,23 @@ class SampleSlot:
             deleted_any = False
             if os.path.isdir(pad_path):
                 try:
-                    files_in_pad = [f for f in os.listdir(pad_path) if f.lower().endswith((".wav", ".mp3"))]
+                    files_in_pad = [
+                        f for f in os.listdir(pad_path) if f.lower().endswith((".wav", ".mp3"))
+                    ]
                 except Exception as e:
                     files_in_pad = []
                     print(f"Could not read pad folder ({pad_path}): {e}")
                 if files_in_pad:
                     file_list_str = ", ".join(files_in_pad)
-                    msg_line1 = "The IMPORT folder for Bank " + bank + ", PAD_" + str(self.pad_num) + " already contains a file (" + file_list_str + ")."
+                    msg_line1 = (
+                        "The IMPORT folder for Bank "
+                        + bank
+                        + ", PAD_"
+                        + str(self.pad_num)
+                        + " already contains a file ("
+                        + file_list_str
+                        + ")."
+                    )
                     msg_line2 = "Should this file also be permanently deleted?"
                     full_msg = msg_line1 + chr(10) + chr(10) + msg_line2
                     answer = dark_askyesno("Delete Sample on Device?", full_msg)
@@ -1045,7 +1271,9 @@ class SampleSlot:
                                 os.remove(full_path)
                                 deleted_any = True
                             except Exception as e:
-                                dark_showerror("Deletion Error", f"{fname} could not be deleted: {e}")
+                                dark_showerror(
+                                    "Deletion Error", f"{fname} could not be deleted: {e}"
+                                )
             if deleted_any:
                 self.app.show_status(f"PAD_{self.pad_num}: removed from the device.")
 

@@ -10,10 +10,15 @@ import uuid
 import wave
 
 from pyp6.constants import (
-    APP_DIR, CONFIG_FILE, TEMP_DIR, WAVETABLE_DIR, WAVEFORM_LIB_FILE,
-    PRESET_MANIFEST_NAME, PRESET_FORMAT_VERSION, SLICE_COUNTS,
-    BANKS, PADS,
-    WT_SR, WT_DRAW_POINTS,
+    APP_DIR,
+    CONFIG_FILE,
+    PRESET_FORMAT_VERSION,
+    PRESET_MANIFEST_NAME,
+    SLICE_COUNTS,
+    TEMP_DIR,
+    WAVEFORM_LIB_FILE,
+    WAVETABLE_DIR,
+    WT_SR,
 )
 
 
@@ -102,6 +107,7 @@ def guess_default_import_root():
     candidates = []
     if os.name == "nt":
         import string
+
         for letter in string.ascii_uppercase:
             candidates.append(f"{letter}:\\IMPORT")
             candidates.append(f"{letter}:\\P-6\\IMPORT")
@@ -125,7 +131,7 @@ def guess_default_import_root():
 def load_config():
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r") as f:
+            with open(CONFIG_FILE) as f:
                 return json.load(f)
         except Exception:
             pass
@@ -243,7 +249,7 @@ def read_preset_manifest(preset_dir):
     """Returns the parsed preset.json, or None if missing/unreadable."""
     manifest_path = os.path.join(preset_dir, PRESET_MANIFEST_NAME)
     try:
-        with open(manifest_path, "r") as f:
+        with open(manifest_path) as f:
             data = json.load(f)
         if not isinstance(data, dict) or "banks" not in data:
             return None
@@ -278,7 +284,7 @@ def load_drawn_library():
     palette rather than a blank slate.
     """
     try:
-        with open(WAVEFORM_LIB_FILE, "r", encoding="utf-8") as f:
+        with open(WAVEFORM_LIB_FILE, encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return {}
@@ -295,9 +301,13 @@ def save_drawn_library(library):
     try:
         os.makedirs(APP_DIR, exist_ok=True)
         with open(WAVEFORM_LIB_FILE, "w", encoding="utf-8") as f:
-            json.dump({n: {"kind": "draw", "name": n,
-                           "a": e.get("a") or [], "b": e.get("b") or []}
-                       for n, e in library.items()}, f)
+            json.dump(
+                {
+                    n: {"kind": "draw", "name": n, "a": e.get("a") or [], "b": e.get("b") or []}
+                    for n, e in library.items()
+                },
+                f,
+            )
         return True
     except Exception as e:
         print(f"Could not save the waveform library: {e}")
@@ -330,8 +340,10 @@ def verify_preset_folder(preset_dir):
         problems.append("format_version is not a number.")
         version = 1
     if version > PRESET_FORMAT_VERSION:
-        problems.append(f"Written in format version {version}; this build "
-                        f"understands up to {PRESET_FORMAT_VERSION}.")
+        problems.append(
+            f"Written in format version {version}; this build "
+            f"understands up to {PRESET_FORMAT_VERSION}."
+        )
 
     for bank, bank_entry in sorted((manifest.get("banks") or {}).items()):
         if not isinstance(bank_entry, dict):
@@ -348,8 +360,7 @@ def verify_preset_folder(preset_dir):
             # Portability first: an absolute path or a .. escape means the
             # preset only works on the machine that wrote it.
             if os.path.isabs(rel) or rel[1:3] == ":\\" or ".." in rel.split("/"):
-                problems.append(f"{where}: path is not relative to the preset "
-                                f"folder ({rel}).")
+                problems.append(f"{where}: path is not relative to the preset folder ({rel}).")
                 continue
             wav = os.path.normpath(os.path.join(preset_dir, *rel.split("/")))
             if not os.path.isfile(wav):
@@ -371,44 +382,51 @@ def verify_preset_folder(preset_dir):
             wt = entry.get("wavetable")
             if wt:
                 cfg = (wt or {}).get("config") or {}
-                drawn = {e.get("name") for e in (cfg.get("custom") or [])
-                         if isinstance(e, dict)}
-                for fam in (cfg.get("families") or []):
+                drawn = {e.get("name") for e in (cfg.get("custom") or []) if isinstance(e, dict)}
+                for fam in cfg.get("families") or []:
                     if fam not in WT_FAMILY_MAP and fam not in drawn:
-                        problems.append(f"{where}: step order uses \"{fam}\", but no "
-                                        f"such waveform is stored in the preset.")
-                for e in (cfg.get("custom") or []):
+                        problems.append(
+                            f'{where}: step order uses "{fam}", but no '
+                            f"such waveform is stored in the preset."
+                        )
+                for e in cfg.get("custom") or []:
                     if not isinstance(e, dict) or not e.get("a"):
-                        problems.append(f"{where}: a drawn waveform entry has no "
-                                        f"shape data.")
+                        problems.append(f"{where}: a drawn waveform entry has no shape data.")
                     elif len(e.get("a") or []) < 4:
-                        problems.append(f"{where}: drawn waveform "
-                                        f"\"{e.get('name')}\" is too short to use.")
+                        problems.append(
+                            f'{where}: drawn waveform "{e.get("name")}" is too short to use.'
+                        )
             prm = os.path.splitext(wav)[0] + ".PRM"
             referenced.add(os.path.normcase(prm))
             if wt:
                 meta = (wt or {}).get("meta") or {}
                 if not os.path.isfile(prm):
-                    problems.append(f"{where}: wavetable pad without its .PRM - "
-                                    f"the P-6 cannot loop a segment without it.")
+                    problems.append(
+                        f"{where}: wavetable pad without its .PRM - "
+                        f"the P-6 cannot loop a segment without it."
+                    )
                 else:
                     try:
-                        text = open(prm, "r").read()
-                        got = {k: int(v) for k, v in
-                               re.findall(r"^(\w+)\s*=\s*(-?\d+)\s*$", text, re.M)}
+                        text = open(prm).read()
+                        got = {
+                            k: int(v)
+                            for k, v in re.findall(r"^(\w+)\s*=\s*(-?\d+)\s*$", text, re.M)
+                        }
                     except Exception as e:
                         got = {}
                         problems.append(f"{where}: .PRM unreadable ({e}).")
                     want_size = meta.get("L")
                     if want_size and got.get("SIZE") not in (None, want_size):
-                        problems.append(f"{where}: .PRM SIZE is {got.get('SIZE')}, "
-                                        f"expected {want_size}.")
+                        problems.append(
+                            f"{where}: .PRM SIZE is {got.get('SIZE')}, expected {want_size}."
+                        )
                     if got and got.get("LOOP") != 1:
                         problems.append(f"{where}: .PRM does not have LOOP enabled.")
                 total = meta.get("total_frames")
                 if total and frames and frames != total:
-                    problems.append(f"{where}: WAV has {frames} frames, the wavetable "
-                                    f"was built with {total}.")
+                    problems.append(
+                        f"{where}: WAV has {frames} frames, the wavetable was built with {total}."
+                    )
                 if rate and rate != WT_SR:
                     problems.append(f"{where}: wavetable is {rate} Hz, expected {WT_SR}.")
 
@@ -428,9 +446,11 @@ def apply_saved_ffmpeg_overrides():
     before the pydub/ffmpeg dependency check, so a working manual override
     from a previous session doesn't get flagged as missing."""
     from pyp6.audio import playback as _pb
+
     if not _pb.PYDUB_AVAILABLE:
         return
     from pydub import AudioSegment
+
     ffmpeg_override = load_ffmpeg_override()
     ffprobe_override = load_ffprobe_override()
     if ffmpeg_override and os.path.exists(ffmpeg_override):
@@ -443,27 +463,45 @@ def apply_saved_ffmpeg_overrides():
 
 def apply_saved_storage_threshold():
     import pyp6.constants as _c
+
     _c.MAX_UPLOAD_BYTES = int(load_storage_warning_mb() * 1024 * 1024)
 
 
 _TEMP_TAG_RE = re.compile(
-    r"_(?:trim|norm|fade|mono|imp|chop|conv)(?:_[A-H][1-6])?_[0-9a-f]{6,8}$", re.IGNORECASE)
+    r"_(?:trim|norm|fade|mono|imp|chop|conv)(?:_[A-H][1-6])?_[0-9a-f]{6,8}$", re.IGNORECASE
+)
 
 
 # NFKD splits accented letters into base + combining mark, which the ASCII
 # step then drops cleanly. Letters with no decomposition would simply vanish,
 # so the common ones get a spelling instead: "Strasse", not "Strae".
-_TRANSLITERATE = str.maketrans({
-    "\u00df": "ss", "\u00e6": "ae", "\u00c6": "AE", "\u00f8": "oe", "\u00d8": "OE",
-    "\u0142": "l", "\u0141": "L", "\u0111": "d", "\u0110": "D",
-    "\u00fe": "th", "\u00de": "TH", "\u00f0": "d", "\u00d0": "D",
-    "\u0153": "oe", "\u0152": "OE", "\u00e5": "aa", "\u00c5": "AA",
-})
+_TRANSLITERATE = str.maketrans(
+    {
+        "\u00df": "ss",
+        "\u00e6": "ae",
+        "\u00c6": "AE",
+        "\u00f8": "oe",
+        "\u00d8": "OE",
+        "\u0142": "l",
+        "\u0141": "L",
+        "\u0111": "d",
+        "\u0110": "D",
+        "\u00fe": "th",
+        "\u00de": "TH",
+        "\u00f0": "d",
+        "\u00d0": "D",
+        "\u0153": "oe",
+        "\u0152": "OE",
+        "\u00e5": "aa",
+        "\u00c5": "AA",
+    }
+)
 
 _RESERVED_DEVICE_NAMES = frozenset(
     ["CON", "PRN", "AUX", "NUL"]
     + [f"COM{i}" for i in range(1, 10)]
-    + [f"LPT{i}" for i in range(1, 10)])
+    + [f"LPT{i}" for i in range(1, 10)]
+)
 
 
 def safe_base_name(path, max_len=48, strip_tags=False, fallback="sample"):
@@ -499,8 +537,9 @@ def safe_base_name(path, max_len=48, strip_tags=False, fallback="sample"):
 
 def derived_temp_path(source_path, tag, ext=".wav"):
     """Temp filename that keeps the source sample's name recognizable."""
-    return temp_path(f"{safe_base_name(source_path, strip_tags=True)}_{tag}_"
-                     f"{uuid.uuid4().hex[:8]}{ext}")
+    return temp_path(
+        f"{safe_base_name(source_path, strip_tags=True)}_{tag}_{uuid.uuid4().hex[:8]}{ext}"
+    )
 
 
 def format_duration(seconds):

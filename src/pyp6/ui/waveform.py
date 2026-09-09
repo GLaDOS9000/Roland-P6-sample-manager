@@ -1,11 +1,12 @@
 """Waveform drawing helpers for Tkinter canvases."""
 
-import numpy as np
-
-from pyp6.constants import MIN_VISIBLE_SECONDS, MIN_TRIM_SECONDS
 from pyp6._theme_vars import (
-    BG_DARK, ACCENT_ORANGE, WAVE_COLOR, TRUNCATE_TINT_STIPPLE,
+    ACCENT_ORANGE,
+    BG_DARK,
+    TRUNCATE_TINT_STIPPLE,
+    WAVE_COLOR,
 )
+from pyp6.constants import MIN_TRIM_SECONDS, MIN_VISIBLE_SECONDS
 
 
 def draw_bracket_marker(canvas, x, height_px, color, side, width_px=3, arm_len=10, tag="marker"):
@@ -50,9 +51,18 @@ def min_trim_fraction(duration_seconds):
     return min(0.5, MIN_TRIM_SECONDS / float(duration_seconds))
 
 
-def draw_waveform_on_canvas(canvas, data, start_frac=0.0, end_frac=1.0,
-                             width_px=480, height_px=80, color=WAVE_COLOR, tag="waveform",
-                             y_offset=0, clear=True):
+def draw_waveform_on_canvas(
+    canvas,
+    data,
+    start_frac=0.0,
+    end_frac=1.0,
+    width_px=480,
+    height_px=80,
+    color=WAVE_COLOR,
+    tag="waveform",
+    y_offset=0,
+    clear=True,
+):
     """Draws a waveform directly on a Tkinter canvas as a single filled
     polygon (min/max envelope per pixel column). This replaces the previous
     matplotlib -> PNG file -> PhotoImage round-trip, which was by far the
@@ -133,10 +143,19 @@ def draw_truncate_overlay(canvas, x_cut, x_right, height_px, tag="truncate"):
     redraw can just call this repeatedly."""
     if x_right <= x_cut:
         return
-    canvas.create_rectangle(x_cut, 0, x_right, height_px,
-                            fill=BG_DARK, stipple="gray50", outline="", tags=tag)
-    canvas.create_rectangle(x_cut, 0, x_right, height_px,
-                            fill=ACCENT_ORANGE, stipple=TRUNCATE_TINT_STIPPLE,
-                            outline="", tags=tag)
-    canvas.create_line(x_cut, 0, x_cut, height_px,
-                       fill=ACCENT_ORANGE, width=1, dash=(3, 2), tags=tag)
+    canvas.create_rectangle(
+        x_cut, 0, x_right, height_px, fill=BG_DARK, stipple="gray50", outline="", tags=tag
+    )
+    canvas.create_rectangle(
+        x_cut,
+        0,
+        x_right,
+        height_px,
+        fill=ACCENT_ORANGE,
+        stipple=TRUNCATE_TINT_STIPPLE,
+        outline="",
+        tags=tag,
+    )
+    canvas.create_line(
+        x_cut, 0, x_cut, height_px, fill=ACCENT_ORANGE, width=1, dash=(3, 2), tags=tag
+    )

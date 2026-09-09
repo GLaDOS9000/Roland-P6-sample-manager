@@ -6,8 +6,8 @@ import shutil
 import subprocess
 import wave
 
-from pyp6.constants import MAX_SECONDS, WT_SR, WT_DRAW_POINTS
 from pyp6.audio.playback import PYDUB_AVAILABLE
+from pyp6.constants import MAX_SECONDS
 
 
 def get_wav_info(path):
@@ -31,6 +31,7 @@ def get_wav_sample_width(path):
 
 def check_duration_warning(path, target_rate=None, pitch_cents=0, force_mono=False):
     from pyp6.audio.conversion import pitch_speed_factor
+
     try:
         duration, rate, channels = get_wav_info(path)
     except Exception:
@@ -42,8 +43,10 @@ def check_duration_warning(path, target_rate=None, pitch_cents=0, force_mono=Fal
     limit = MAX_SECONDS.get((rate, ch_key))
     if limit and duration > limit:
         pitch_note = f" (with pitch {pitch_cents:+d}c)" if pitch_cents else ""
-        return (f"Sample is {duration:.1f}s long{pitch_note}, but at {rate}Hz/"
-                f"{'Mono' if ch_key==1 else 'Stereo'} only {limit}s are possible.")
+        return (
+            f"Sample is {duration:.1f}s long{pitch_note}, but at {rate}Hz/"
+            f"{'Mono' if ch_key == 1 else 'Stereo'} only {limit}s are possible."
+        )
     return None
 
 
@@ -51,6 +54,7 @@ def compute_truncate_fraction(path, target_rate=None, pitch_cents=0, force_mono=
     """Where the P-6's length limit falls inside `path`, as a fraction of the
     file's ORIGINAL (un-pitch-shifted) timeline - or None if the sample fits."""
     from pyp6.audio.conversion import pitch_speed_factor
+
     try:
         duration, _, channels = get_wav_info(path)
     except Exception:
@@ -73,6 +77,7 @@ def _mp3_duration_via_ffprobe(path):
     if PYDUB_AVAILABLE:
         try:
             from pydub import AudioSegment
+
             ffprobe = getattr(AudioSegment, "ffprobe", None)
         except Exception:
             ffprobe = None
@@ -83,9 +88,19 @@ def _mp3_duration_via_ffprobe(path):
         return None
     try:
         result = subprocess.run(
-            [ffprobe, "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", path],
-            capture_output=True, text=True, timeout=5
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return float(result.stdout.strip())
     except Exception:
@@ -114,6 +129,7 @@ def get_audio_duration_seconds(path):
             duration = _mp3_duration_via_ffprobe(path)
             if duration is None and PYDUB_AVAILABLE:
                 from pydub import AudioSegment
+
                 audio = AudioSegment.from_file(path)
                 duration = len(audio) / 1000.0
     except Exception:

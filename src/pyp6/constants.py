@@ -38,10 +38,14 @@ PITCH_MAX_CENTS = 1200
 PITCH_STEP_CENTS = 100
 
 MAX_SECONDS = {
-    (44100, 1): 5.9, (44100, 2): 2.95,
-    (22050, 1): 11.8, (22050, 2): 5.9,
-    (14700, 1): 17.8, (14700, 2): 8.9,
-    (11025, 1): 23.7, (11025, 2): 11.85,
+    (44100, 1): 5.9,
+    (44100, 2): 2.95,
+    (22050, 1): 11.8,
+    (22050, 2): 5.9,
+    (14700, 1): 17.8,
+    (14700, 2): 8.9,
+    (11025, 1): 23.7,
+    (11025, 2): 11.85,
 }
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB soft limit per upload
@@ -82,19 +86,19 @@ AUDIO_PREVIEW_MIN_W, AUDIO_PREVIEW_MIN_H = 660, 580 + 2 * 32
 WT_SR = 44100
 WT_SEGMENTS = 255
 WT_MAX_SECONDS = 5.9
-WT_MAX_SEG_FRAMES = int(WT_MAX_SECONDS * WT_SR) // WT_SEGMENTS   # 1020
+WT_MAX_SEG_FRAMES = int(WT_MAX_SECONDS * WT_SR) // WT_SEGMENTS  # 1020
 WT_PEAK = 0.9
 WT_PREVIEW_SECONDS = 5.0
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # name: (base MIDI note, cycles per segment, default upward range)
 WT_REGISTERS = {
-    "Bass": (36, 1, 0),     # C2
-    "Mid":  (48, 2, 12),    # C3
-    "Lead": (48, 2, 24),    # C3
+    "Bass": (36, 1, 0),  # C2
+    "Mid": (48, 2, 12),  # C3
+    "Lead": (48, 2, 24),  # C3
 }
 
-WT_DRAW_POINTS = 512    # stored resolution of a hand-drawn cycle
+WT_DRAW_POINTS = 512  # stored resolution of a hand-drawn cycle
 # Upper limit for the step order. 255 segments over 16 families is already
 # only 15-16 steps each; past that the morph inside a family gets too coarse
 # to hear as a sweep, and the table turns into a list of jumps.
@@ -103,8 +107,8 @@ WT_DRAW_POINTS = 512    # stored resolution of a hand-drawn cycle
 ZOOM_BAR_RESERVE = 24
 
 WT_MAX_SELECTED = 16
-WT_MORPH_HEIGHT = 150   # isometric morph display in the wavetable dialog
-WT_MORPH_SHOWN = 12     # curves drawn; the family itself may have more steps
+WT_MORPH_HEIGHT = 150  # isometric morph display in the wavetable dialog
+WT_MORPH_SHOWN = 12  # curves drawn; the family itself may have more steps
 # The morph display renders at the real segment length so nothing is
 # understated; this only stops an unusually long segment from getting slow.
 WT_MORPH_MAX_POINTS = 1024
@@ -114,79 +118,156 @@ WT_CYCLE_SANE_MAX = 8192
 
 CYCLE_AUDITION_SECONDS = 3.0
 
-TOOLTIP_DELAY_MS = 550       # long enough that they don't fire while just passing over
+TOOLTIP_DELAY_MS = 550  # long enough that they don't fire while just passing over
 TOOLTIP_WRAPLENGTH = 320
 
-MIN_VISIBLE_SECONDS = 0.08   # narrowest useful view - roughly one drum hit
-MIN_TRIM_SECONDS = 0.01   # 10 ms - short enough for a single drum transient
+MIN_VISIBLE_SECONDS = 0.08  # narrowest useful view - roughly one drum hit
+MIN_TRIM_SECONDS = 0.01  # 10 ms - short enough for a single drum transient
 
 BUTTON_SATURATION = 0.75  # button fills sit at 75% of the accent's saturation
 
 # .PRM sidecar defaults and templates
 PRM_DEFAULTS = [
-    ("PHRASE", 0), ("GATE", 1), ("LOOP", 1), ("REVERSE", 0),
-    ("START_POS", 0), ("SIZE", 0), ("LOOP_SIZE", 0),
-    ("C.TUNE", 0), ("F.TUNE", 0), ("DETUNE", 0),
-    ("LO-FI_SW", 0), ("LO-FI", 70),
+    ("PHRASE", 0),
+    ("GATE", 1),
+    ("LOOP", 1),
+    ("REVERSE", 0),
+    ("START_POS", 0),
+    ("SIZE", 0),
+    ("LOOP_SIZE", 0),
+    ("C.TUNE", 0),
+    ("F.TUNE", 0),
+    ("DETUNE", 0),
+    ("LO-FI_SW", 0),
+    ("LO-FI", 70),
     ("ENV_MODE", 4),
-    ("PENV_MODE", 1), ("PENV_ATTACK", 0), ("PENV_DECAY", 20),
-    ("PENV_SUSTAIN", 255), ("PENV_RELEASE", 25), ("PENV_TIME_KEYF", 255),
-    ("PENV_VELO_SENS", 0), ("PENV_DEPTH", 0),
-    ("TENV_MODE", 1), ("TENV_ATTACK", 3), ("TENV_DECAY", 0),
-    ("TENV_SUSTAIN", 255), ("TENV_RELEASE", 3), ("TENV_TIME_KEYF", 255),
-    ("TVF_TYPE", 0), ("TVF_CUTOFF", 255), ("TVF_RESO", 0), ("TVF_KEYF", 255),
-    ("TVF_VELO_SENS", 0), ("TVF_ENV_DEPTH", 0),
-    ("TVA_SW", 1), ("LEVEL", 100),
-    ("PAN_MODE", 0), ("PAN", 64), ("OUTPUT_SEL", 2),
-    ("SEND_DELAY", 0), ("SEND_REVERB", 0),
-    ("TM_STR_MODE", 0), ("TM_STR_WINDOW", 30), ("TM_STR_SPEED", 100),
-    ("MONO_POLY", 0), ("CHOP", 1), ("MUTE_GROUP", 0),
+    ("PENV_MODE", 1),
+    ("PENV_ATTACK", 0),
+    ("PENV_DECAY", 20),
+    ("PENV_SUSTAIN", 255),
+    ("PENV_RELEASE", 25),
+    ("PENV_TIME_KEYF", 255),
+    ("PENV_VELO_SENS", 0),
+    ("PENV_DEPTH", 0),
+    ("TENV_MODE", 1),
+    ("TENV_ATTACK", 3),
+    ("TENV_DECAY", 0),
+    ("TENV_SUSTAIN", 255),
+    ("TENV_RELEASE", 3),
+    ("TENV_TIME_KEYF", 255),
+    ("TVF_TYPE", 0),
+    ("TVF_CUTOFF", 255),
+    ("TVF_RESO", 0),
+    ("TVF_KEYF", 255),
+    ("TVF_VELO_SENS", 0),
+    ("TVF_ENV_DEPTH", 0),
+    ("TVA_SW", 1),
+    ("LEVEL", 100),
+    ("PAN_MODE", 0),
+    ("PAN", 64),
+    ("OUTPUT_SEL", 2),
+    ("SEND_DELAY", 0),
+    ("SEND_REVERB", 0),
+    ("TM_STR_MODE", 0),
+    ("TM_STR_WINDOW", 30),
+    ("TM_STR_SPEED", 100),
+    ("MONO_POLY", 0),
+    ("CHOP", 1),
+    ("MUTE_GROUP", 0),
 ] + [(f"PRM{i}", 0) for i in range(1, 17)]
 
 PRM_TEMPLATES = {
     "Init": {
-        "GATE": 1, "LOOP": 1, "TENV_SUSTAIN": 255, "LEVEL": 110,
+        "GATE": 1,
+        "LOOP": 1,
+        "TENV_SUSTAIN": 255,
+        "LEVEL": 110,
     },
     "Acid": {
-        "GATE": 1, "LOOP": 1, "TENV_ATTACK": 23,
-        "TENV_DECAY": 26, "TENV_SUSTAIN": 45, "TENV_RELEASE": 108,
-        "TVF_TYPE": 1, "TVF_CUTOFF": 137, "TVF_RESO": 218,
-        "TVF_ENV_DEPTH": 27, "LEVEL": 110,
+        "GATE": 1,
+        "LOOP": 1,
+        "TENV_ATTACK": 23,
+        "TENV_DECAY": 26,
+        "TENV_SUSTAIN": 45,
+        "TENV_RELEASE": 108,
+        "TVF_TYPE": 1,
+        "TVF_CUTOFF": 137,
+        "TVF_RESO": 218,
+        "TVF_ENV_DEPTH": 27,
+        "LEVEL": 110,
     },
     "Bass 1": {
-        "GATE": 1, "LOOP": 1, "TENV_ATTACK": 0,
-        "TENV_DECAY": 52, "TENV_SUSTAIN": 18, "TENV_RELEASE": 71,
-        "TVF_TYPE": 1, "TVF_CUTOFF": 3, "TVF_RESO": 23,
-        "TVF_ENV_DEPTH": 43, "LEVEL": 110,
+        "GATE": 1,
+        "LOOP": 1,
+        "TENV_ATTACK": 0,
+        "TENV_DECAY": 52,
+        "TENV_SUSTAIN": 18,
+        "TENV_RELEASE": 71,
+        "TVF_TYPE": 1,
+        "TVF_CUTOFF": 3,
+        "TVF_RESO": 23,
+        "TVF_ENV_DEPTH": 43,
+        "LEVEL": 110,
     },
     "Bass 2": {
-        "GATE": 1, "LOOP": 1, "TENV_ATTACK": 0,
-        "TENV_DECAY": 85, "TENV_SUSTAIN": 82, "TENV_RELEASE": 109,
-        "TVF_TYPE": 1, "TVF_CUTOFF": 0, "TVF_RESO": 75,
-        "TVF_ENV_DEPTH": 19, "LEVEL": 110,
+        "GATE": 1,
+        "LOOP": 1,
+        "TENV_ATTACK": 0,
+        "TENV_DECAY": 85,
+        "TENV_SUSTAIN": 82,
+        "TENV_RELEASE": 109,
+        "TVF_TYPE": 1,
+        "TVF_CUTOFF": 0,
+        "TVF_RESO": 75,
+        "TVF_ENV_DEPTH": 19,
+        "LEVEL": 110,
     },
     # PENV is spelled out in full here, including values that match the
     # baseline: the small ones shape the attack audibly and should not
     # silently follow a future change to PRM_DEFAULTS. PENV_DEPTH is 0, so
     # the pitch envelope is currently inactive.
     "Pad": {
-        "GATE": 1, "LOOP": 1, "DETUNE": 10,
-        "PENV_MODE": 1, "PENV_ATTACK": 1, "PENV_DECAY": 225,
-        "PENV_SUSTAIN": 255, "PENV_RELEASE": 25, "PENV_TIME_KEYF": 255,
-        "PENV_VELO_SENS": 0, "PENV_DEPTH": 0,
-        "TENV_ATTACK": 255, "TENV_DECAY": 125, "TENV_RELEASE": 255,
-        "TVF_TYPE": 1, "TVF_CUTOFF": 112, "TVF_ENV_DEPTH": 122,
-        "LEVEL": 110, "MONO_POLY": 1,
+        "GATE": 1,
+        "LOOP": 1,
+        "DETUNE": 10,
+        "PENV_MODE": 1,
+        "PENV_ATTACK": 1,
+        "PENV_DECAY": 225,
+        "PENV_SUSTAIN": 255,
+        "PENV_RELEASE": 25,
+        "PENV_TIME_KEYF": 255,
+        "PENV_VELO_SENS": 0,
+        "PENV_DEPTH": 0,
+        "TENV_ATTACK": 255,
+        "TENV_DECAY": 125,
+        "TENV_RELEASE": 255,
+        "TVF_TYPE": 1,
+        "TVF_CUTOFF": 112,
+        "TVF_ENV_DEPTH": 122,
+        "LEVEL": 110,
+        "MONO_POLY": 1,
     },
     "Reso": {
-        "GATE": 1, "LOOP": 1, "TENV_SUSTAIN": 73,
-        "TENV_RELEASE": 181, "TVF_TYPE": 2, "TVF_CUTOFF": 46,
-        "TVF_RESO": 158, "TVF_ENV_DEPTH": 66, "LEVEL": 110,
+        "GATE": 1,
+        "LOOP": 1,
+        "TENV_SUSTAIN": 73,
+        "TENV_RELEASE": 181,
+        "TVF_TYPE": 2,
+        "TVF_CUTOFF": 46,
+        "TVF_RESO": 158,
+        "TVF_ENV_DEPTH": 66,
+        "LEVEL": 110,
     },
     "Reso 2": {
-        "GATE": 1, "LOOP": 1, "TENV_DECAY": 17,
-        "TENV_SUSTAIN": 86, "TENV_RELEASE": 74, "TVF_TYPE": 2,
-        "TVF_CUTOFF": 102, "TVF_RESO": 133, "TVF_ENV_DEPTH": 22,
+        "GATE": 1,
+        "LOOP": 1,
+        "TENV_DECAY": 17,
+        "TENV_SUSTAIN": 86,
+        "TENV_RELEASE": 74,
+        "TVF_TYPE": 2,
+        "TVF_CUTOFF": 102,
+        "TVF_RESO": 133,
+        "TVF_ENV_DEPTH": 22,
         "LEVEL": 110,
     },
 }

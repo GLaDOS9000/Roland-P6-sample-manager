@@ -10,10 +10,9 @@ original computed from the theme are also exported here.
 """
 
 import json
-import os
 
-from pyp6.constants import CONFIG_FILE, BUTTON_SATURATION
-from pyp6.theme import THEMES, fill_for_white_text, readable_on, _relative_luminance
+from pyp6.constants import CONFIG_FILE
+from pyp6.theme import THEMES, _relative_luminance, fill_for_white_text, readable_on
 
 
 def _load_theme_preference():
@@ -21,7 +20,7 @@ def _load_theme_preference():
     module is available - colors must be resolved before any widget class
     is imported)."""
     try:
-        with open(CONFIG_FILE, "r") as f:
+        with open(CONFIG_FILE) as f:
             return json.load(f).get("theme", "dark")
     except Exception:
         return "dark"

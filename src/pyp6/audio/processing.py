@@ -130,6 +130,7 @@ def apply_micro_fade(data, fs, fade_ms=2):
 def snap_ms_backward_to_zero(audio_segment, target_ms, search_ms=5):
     """Finds a zero-crossing at or before target_ms."""
     import numpy as np
+
     fs = audio_segment.frame_rate
     target_idx = int(target_ms * fs / 1000)
     if target_idx <= 1:

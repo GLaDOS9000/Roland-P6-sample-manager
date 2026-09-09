@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from pyp6.constants import WT_DRAW_POINTS, WT_CYCLE_SANE_MAX, WT_SR
+from pyp6.constants import WT_CYCLE_SANE_MAX, WT_DRAW_POINTS, WT_SR
 
 
 def _wt_fold(x, gain):
@@ -29,7 +29,7 @@ def _wtf_saw(s, m, f0):
 def _wtf_pulse(s, m, f0):
     d = _wt_geom(0.50, 0.015, m)
     b = 2 * np.pi * s.k * d
-    return s.add_sc((1 - np.cos(b)) / s.k, np.sin(b) / s.k), f"{d*100:.2f}%"
+    return s.add_sc((1 - np.cos(b)) / s.k, np.sin(b) / s.k), f"{d * 100:.2f}%"
 
 
 def _wtf_triangle(s, m, f0):
@@ -58,8 +58,10 @@ def _wtf_sync(s, m, f0):
 
 def _wtf_fm(s, m, f0):
     idx = _wt_lerp(0.0, 8.0, m)
-    return (s.band_limit(np.sin(2 * np.pi * s.t + idx * np.sin(4 * np.pi * s.t))),
-            f"C:M 1:2 I={idx:.2f}")
+    return (
+        s.band_limit(np.sin(2 * np.pi * s.t + idx * np.sin(4 * np.pi * s.t))),
+        f"C:M 1:2 I={idx:.2f}",
+    )
 
 
 def _wtf_phasedist(s, m, f0):
@@ -109,7 +111,7 @@ def _wtf_piano(s, m, f0):
     amps = s.k ** (-tilt)
     amps = amps * (1.0 + 0.45 * np.exp(-0.5 * ((s.k - 3) / 1.6) ** 2))
     amps = amps * (1.0 - 0.30 * (s.k % 2 == 0))
-    amps = amps * np.exp(-(s.k * f0 / _wt_lerp(3500, 11000, m)) ** 2)
+    amps = amps * np.exp(-((s.k * f0 / _wt_lerp(3500, 11000, m)) ** 2))
     return s.add(amps), f"hardness {m:.2f}"
 
 
@@ -117,20 +119,19 @@ def _wtf_strings(s, m, f0):
     """Bowed string, morphing by bow position rather than by brightness."""
     beta = _wt_lerp(0.26, 0.055, m)
     comb = np.abs(np.sin(np.pi * s.k * beta)) / s.k
-    body = s.formant(f0, [420, 1100, 2600], [1.0, 0.55, 0.30],
-                     [180, 320, 700], tilt=0.6)
+    body = s.formant(f0, [420, 1100, 2600], [1.0, 0.55, 0.30], [180, 320, 700], tilt=0.6)
     peak = float(np.max(body))
     if peak > 1e-12:
         body = body / peak
     amps = comb * (0.30 + 0.70 * body)
-    amps = amps * np.exp(-(s.k * f0 / _wt_lerp(3200, 11000, m)) ** 1.6)
+    amps = amps * np.exp(-((s.k * f0 / _wt_lerp(3200, 11000, m)) ** 1.6))
     return s.add(amps, phases=0.35 * np.sin(s.k)), f"bow {beta:.3f}"
 
 
 def _wtf_brass(s, m, f0):
     fc = _wt_lerp(500, 3200, m)
     amps = s.formant(f0, [fc, fc * 2.1], [1.0, 0.35], [fc * 0.55, fc * 0.8], tilt=0.9)
-    amps = amps * np.exp(-(s.k * f0 / _wt_lerp(2200, 9000, m)) ** 2)
+    amps = amps * np.exp(-((s.k * f0 / _wt_lerp(2200, 9000, m)) ** 2))
     return s.add(amps), f"blow {m:.2f}"
 
 
@@ -193,6 +194,7 @@ def wt_resample_cycle(values, points=None):
 def wt_cycle_tone(values, hz, seconds=None, sr=WT_SR):
     """Turns one cycle into a sustained note, for auditioning."""
     from pyp6.constants import CYCLE_AUDITION_SECONDS
+
     seconds = seconds or CYCLE_AUDITION_SECONDS
     period = max(4, int(round(sr / float(hz))))
     cycle = wt_resample_cycle(values, period)
@@ -218,6 +220,7 @@ def wt_load_cycle_file(path, points=None):
     data, rate = None, None
     try:
         import soundfile as _sf
+
         data, rate = _sf.read(path, dtype="float64", always_2d=True)
         data = data.mean(axis=1)
     except Exception:
@@ -248,9 +251,12 @@ def wt_load_cycle_file(path, points=None):
     peak = float(np.max(np.abs(resampled)))
     if peak > 1e-12:
         resampled = resampled / peak
-    info = {"frames": frames, "rate": rate,
-            "harmonics": min(frames // 2, points // 2),
-            "long": frames > WT_CYCLE_SANE_MAX}
+    info = {
+        "frames": frames,
+        "rate": rate,
+        "harmonics": min(frames // 2, points // 2),
+        "long": frames > WT_CYCLE_SANE_MAX,
+    }
     return [round(float(v), 4) for v in resampled], info
 
 
@@ -263,8 +269,8 @@ def wt_points_to_cycle(points, s):
     usable = min(int(s.h), pts.size // 2, len(spec) - 1)
     if usable < 1:
         return np.zeros(s.L)
-    amps = 2.0 * np.abs(spec[1:usable + 1])
-    phs = np.angle(spec[1:usable + 1])
+    amps = 2.0 * np.abs(spec[1 : usable + 1])
+    phs = np.angle(spec[1 : usable + 1])
     ca = (amps * np.cos(phs))[:, None] * s.cos_b[:usable]
     sa = (amps * np.sin(phs))[:, None] * s.sin_b[:usable]
     w = (ca - sa).sum(axis=0)
@@ -298,5 +304,4 @@ def wt_family_entry(item):
 
 
 def wt_selection_names(selection):
-    return [(i.get("name") or "Custom") if isinstance(i, dict) else i
-            for i in selection]
+    return [(i.get("name") or "Custom") if isinstance(i, dict) else i for i in selection]

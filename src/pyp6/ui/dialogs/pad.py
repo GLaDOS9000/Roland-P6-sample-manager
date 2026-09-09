@@ -16,31 +16,48 @@ try:
 except ImportError:
     sf = None
 
-from pyp6.constants import UI_FAMILY, MAIN_MIN_W, ZOOM_BAR_RESERVE
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_GREEN, ACCENT_RED, ACCENT_ORANGE,
-    BORDER_COLOR, WAVE_BG,
-    BTN_BLUE, BTN_GREEN,
+    ACCENT_BLUE,
+    ACCENT_GREEN,
+    ACCENT_ORANGE,
+    ACCENT_RED,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BTN_BLUE,
+    BTN_GREEN,
+    FG_MUTED,
+    FG_TEXT,
+    WAVE_BG,
 )
-from pyp6.config import format_duration
 from pyp6.audio.info import compute_truncate_fraction
 from pyp6.audio.processing import (
-    trim_wav_file, normalize_wav_file,
-    apply_fade_envelope, apply_fade_to_wav_file,
+    apply_fade_envelope,
+    apply_fade_to_wav_file,
     apply_micro_fade,
+    normalize_wav_file,
+    trim_wav_file,
+)
+from pyp6.config import format_duration
+from pyp6.constants import MAIN_MIN_W, UI_FAMILY, ZOOM_BAR_RESERVE
+from pyp6.ui.dialogs_common import (
+    add_tooltip,
+    center_toplevel_on_parent,
+    dark_showerror,
+    dark_showinfo,
+    style_checkbutton,
+    style_label,
+    style_toplevel,
+)
+from pyp6.ui.waveform import (
+    draw_bracket_marker,
+    draw_truncate_overlay,
+    draw_waveform_on_canvas,
+    max_zoom_for,
+    min_trim_fraction,
 )
 from pyp6.ui.widgets import RoundedButton, RoundedPanel, RoundedScrollbar
-from pyp6.ui.waveform import (
-    draw_bracket_marker, max_zoom_for, min_trim_fraction,
-    draw_waveform_on_canvas, draw_truncate_overlay,
-)
-from pyp6.ui.dialogs_common import (
-    style_toplevel, style_label, style_checkbutton,
-    center_toplevel_on_parent,
-    dark_showinfo, dark_showerror,
-    add_tooltip,
-)
 
 
 class PadWaveformViewDialog(tk.Toplevel):
@@ -100,10 +117,16 @@ class PadWaveformViewDialog(tk.Toplevel):
         self.FADE_STEPS = [0.0, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 1.0]
         self.fade_in_seconds = 0.0
         self.fade_out_seconds = 0.0
-        edit_panel = RoundedPanel(self, title="Edit", parent_bg=BG_DARK,
-                                  panel_bg=BG_PANEL, radius=12,
-                                  title_font=(UI_FAMILY, 9, "bold"),
-                                  body_padx=10, body_pady=(24, 8))
+        edit_panel = RoundedPanel(
+            self,
+            title="Edit",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         edit_panel.pack(fill="x", padx=16, pady=(0, 4))
         controls_row = tk.Frame(edit_panel.body, bg=BG_PANEL)
         controls_row.pack(fill="x")
@@ -112,77 +135,153 @@ class PadWaveformViewDialog(tk.Toplevel):
         # on that side regardless of how wide the left-hand group grows.
         zoom_row = tk.Frame(controls_row, bg=BG_PANEL)
         zoom_row.pack(side="right")
-        zoom_out_btn = RoundedButton(zoom_row, text="\u2212", command=self.zoom_out,
-                                      bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                      width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        zoom_out_btn = RoundedButton(
+            zoom_row,
+            text="\u2212",
+            command=self.zoom_out,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         zoom_out_btn.pack(side="left", padx=1)
         self.zoom_label = tk.Label(zoom_row, text="1.0x")
         style_label(self.zoom_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8, "bold"))
         self.zoom_label.pack(side="left", padx=4)
-        zoom_in_btn = RoundedButton(zoom_row, text="+", command=self.zoom_in,
-                                     bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                     width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        zoom_in_btn = RoundedButton(
+            zoom_row,
+            text="+",
+            command=self.zoom_in,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         zoom_in_btn.pack(side="left", padx=1)
-        zoom_reset_btn = RoundedButton(zoom_row, text="Reset", command=self.zoom_reset,
-                                        bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                        width=55, height=22, font=(UI_FAMILY, 8, "bold"))
+        zoom_reset_btn = RoundedButton(
+            zoom_row,
+            text="Reset",
+            command=self.zoom_reset,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=55,
+            height=22,
+            font=(UI_FAMILY, 8, "bold"),
+        )
         zoom_reset_btn.pack(side="left", padx=(6, 0))
 
         # Normalize + Fade on the left - "shape the level/edges of the
         # selection" controls, grouped together and read as one unit.
         self.normalize_var = tk.BooleanVar(value=False)
-        normalize_cb = tk.Checkbutton(controls_row, text="Normalize", variable=self.normalize_var,
-                                       command=self._render_wave_at_current_view)
+        normalize_cb = tk.Checkbutton(
+            controls_row,
+            text="Normalize",
+            variable=self.normalize_var,
+            command=self._render_wave_at_current_view,
+        )
         style_checkbutton(normalize_cb)
         normalize_cb.pack(side="left")
-        add_tooltip(normalize_cb,
-                    "Lifts the sample to its maximum level without clipping. Shown live "
-                    "in the waveform, written on \"Apply to Pad\".")
+        add_tooltip(
+            normalize_cb,
+            "Lifts the sample to its maximum level without clipping. Shown live "
+            'in the waveform, written on "Apply to Pad".',
+        )
 
         fade_in_lbl = tk.Label(controls_row, text="Fade In:")
         style_label(fade_in_lbl, font=(UI_FAMILY, 9))
         fade_in_lbl.pack(side="left", padx=(20, 0))
-        self.fade_in_minus = RoundedButton(controls_row, text="\u2212", command=lambda: self._adjust_fade("in", -1),
-                                            bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                            width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        self.fade_in_minus = RoundedButton(
+            controls_row,
+            text="\u2212",
+            command=lambda: self._adjust_fade("in", -1),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         self.fade_in_minus.pack(side="left", padx=(6, 1))
         self.fade_in_label = tk.Label(controls_row, text="0.00s", width=6)
         style_label(self.fade_in_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8, "bold"))
         self.fade_in_label.pack(side="left", padx=4)
-        self.fade_in_plus = RoundedButton(controls_row, text="+", command=lambda: self._adjust_fade("in", 1),
-                                           bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                           width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        self.fade_in_plus = RoundedButton(
+            controls_row,
+            text="+",
+            command=lambda: self._adjust_fade("in", 1),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         self.fade_in_plus.pack(side="left", padx=1)
 
         fade_out_lbl = tk.Label(controls_row, text="Fade Out:")
         style_label(fade_out_lbl, font=(UI_FAMILY, 9))
         fade_out_lbl.pack(side="left", padx=(20, 0))
-        self.fade_out_minus = RoundedButton(controls_row, text="\u2212", command=lambda: self._adjust_fade("out", -1),
-                                             bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                             width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        self.fade_out_minus = RoundedButton(
+            controls_row,
+            text="\u2212",
+            command=lambda: self._adjust_fade("out", -1),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         self.fade_out_minus.pack(side="left", padx=(6, 1))
         self.fade_out_label = tk.Label(controls_row, text="0.00s", width=6)
         style_label(self.fade_out_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8, "bold"))
         self.fade_out_label.pack(side="left", padx=4)
-        self.fade_out_plus = RoundedButton(controls_row, text="+", command=lambda: self._adjust_fade("out", 1),
-                                            bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                            width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        self.fade_out_plus = RoundedButton(
+            controls_row,
+            text="+",
+            command=lambda: self._adjust_fade("out", 1),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         self.fade_out_plus.pack(side="left", padx=1)
 
         if self.is_chop_sample:
-            fade_help = ("Disabled for chop multisamples: a fade would shift the fixed "
-                         "slice boundaries the P-6 relies on.")
+            fade_help = (
+                "Disabled for chop multisamples: a fade would shift the fixed "
+                "slice boundaries the P-6 relies on."
+            )
         else:
-            fade_help = ("Fades the marked region in/out, 0 to 1.0 s in logarithmic "
-                         "steps. Useful against clicks at the start or end.")
-        for _fade_btn in (self.fade_in_minus, self.fade_in_plus,
-                          self.fade_out_minus, self.fade_out_plus):
+            fade_help = (
+                "Fades the marked region in/out, 0 to 1.0 s in logarithmic "
+                "steps. Useful against clicks at the start or end."
+            )
+        for _fade_btn in (
+            self.fade_in_minus,
+            self.fade_in_plus,
+            self.fade_out_minus,
+            self.fade_out_plus,
+        ):
             add_tooltip(_fade_btn, fade_help)
 
-        wave_panel = RoundedPanel(self, title="Waveform / Trim", parent_bg=BG_DARK,
-                                  panel_bg=BG_PANEL, radius=12,
-                                  title_font=(UI_FAMILY, 9, "bold"),
-                                  body_padx=10, body_pady=(24, 8))
+        wave_panel = RoundedPanel(
+            self,
+            title="Waveform / Trim",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         wave_panel.pack(fill="both", expand=True, padx=16)
 
         duration_row = tk.Frame(wave_panel.body, bg=BG_PANEL)
@@ -191,8 +290,9 @@ class PadWaveformViewDialog(tk.Toplevel):
             chop_hint = tk.Label(
                 duration_row,
                 text="Chop sample: trim and fade are disabled (would risk breaking slice "
-                     "playback on the P-6). Normalize is still available.",
-                anchor="w")
+                "playback on the P-6). Normalize is still available.",
+                anchor="w",
+            )
             style_label(chop_hint, fg=ACCENT_ORANGE, font=(UI_FAMILY, 8))
             chop_hint.pack(side="left")
             self.fade_in_minus.config_state("disabled")
@@ -205,18 +305,23 @@ class PadWaveformViewDialog(tk.Toplevel):
 
         wave_frame = tk.Frame(wave_panel.body, bg=BG_PANEL)
         wave_frame.pack(fill="both", expand=True)
-        self.wave_canvas = tk.Canvas(wave_frame, bg=WAVE_BG, highlightthickness=0, bd=0,
-                                      cursor="sb_h_double_arrow")
+        self.wave_canvas = tk.Canvas(
+            wave_frame, bg=WAVE_BG, highlightthickness=0, bd=0, cursor="sb_h_double_arrow"
+        )
         self.wave_canvas.pack(fill="both", expand=True, pady=(8, 2))
         if self.is_chop_sample:
-            add_tooltip(self.wave_canvas,
-                        "Chop multisample: the trim markers are disabled so the slice "
-                        "boundaries stay intact.")
+            add_tooltip(
+                self.wave_canvas,
+                "Chop multisample: the trim markers are disabled so the slice "
+                "boundaries stay intact.",
+            )
         else:
-            add_tooltip(self.wave_canvas,
-                        "Drag the green (start) and red (end) markers to shorten the "
-                        "sample. An orange area marks what the P-6 would cut off at the "
-                        "current rate and pitch.")
+            add_tooltip(
+                self.wave_canvas,
+                "Drag the green (start) and red (end) markers to shorten the "
+                "sample. An orange area marks what the P-6 would cut off at the "
+                "current rate and pitch.",
+            )
         self.wave_canvas.bind("<Configure>", self._on_wave_canvas_resize)
         self.wave_canvas.bind("<ButtonPress-1>", self.on_wave_press)
         self.wave_canvas.bind("<B1-Motion>", self.on_wave_drag)
@@ -224,14 +329,17 @@ class PadWaveformViewDialog(tk.Toplevel):
         self.wave_canvas.bind("<MouseWheel>", self.on_wave_mousewheel)
         self.wave_canvas.bind("<Button-4>", self.on_wave_mousewheel)
         self.wave_canvas.bind("<Button-5>", self.on_wave_mousewheel)
-        self.wave_scrollbar = RoundedScrollbar(wave_frame, orient="horizontal",
-                                               command=self.on_wave_scroll,
-                                               parent_bg=BG_PANEL, auto_hide=False)
+        self.wave_scrollbar = RoundedScrollbar(
+            wave_frame,
+            orient="horizontal",
+            command=self.on_wave_scroll,
+            parent_bg=BG_PANEL,
+            auto_hide=False,
+        )
         # Holds the scrollbar's height while it is hidden, so showing it
         # later costs nothing and cannot push the button row out of the
         # window. Same height and padding as the scrollbar itself.
-        self._zoom_spacer = tk.Frame(wave_frame, bg=BG_PANEL,
-                                      height=RoundedScrollbar.THICKNESS)
+        self._zoom_spacer = tk.Frame(wave_frame, bg=BG_PANEL, height=RoundedScrollbar.THICKNESS)
         self._zoom_spacer.pack_propagate(False)
         # Packed straight away: the window sizes itself from its contents when
         # it opens, so the space has to be accounted for from the start.
@@ -241,22 +349,46 @@ class PadWaveformViewDialog(tk.Toplevel):
 
         btn_row = tk.Frame(self, padx=16, pady=12, bg=BG_DARK)
         btn_row.pack(fill="x")
-        self.play_btn = RoundedButton(btn_row, text="\u25b6 Preview", command=self.toggle_play,
-                                       bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK, width=110)
+        self.play_btn = RoundedButton(
+            btn_row,
+            text="\u25b6 Preview",
+            command=self.toggle_play,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=110,
+        )
         self.play_btn.pack(side="left")
-        add_tooltip(self.play_btn,
-                    "Plays the marked region with the current edits.\nShortcut: Space")
-        close_btn = RoundedButton(btn_row, text="Close", command=self.on_close,
-                                   bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=90)
+        add_tooltip(
+            self.play_btn, "Plays the marked region with the current edits.\nShortcut: Space"
+        )
+        close_btn = RoundedButton(
+            btn_row,
+            text="Close",
+            command=self.on_close,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
         close_btn.pack(side="right")
         add_tooltip(close_btn, "Closes the editor. Unapplied changes are discarded.")
-        apply_btn = RoundedButton(btn_row, text="Apply to Pad", command=self.apply_changes,
-                                   bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=130)
+        apply_btn = RoundedButton(
+            btn_row,
+            text="Apply to Pad",
+            command=self.apply_changes,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=130,
+        )
         apply_btn.pack(side="right", padx=(0, 8))
-        add_tooltip(apply_btn,
-                    "Writes trim, normalize and fade to a new file in the temp folder and "
-                    "puts it back on this pad. The original file stays untouched; "
-                    "Ctrl+Z undoes it.")
+        add_tooltip(
+            apply_btn,
+            "Writes trim, normalize and fade to a new file in the temp folder and "
+            "puts it back on this pad. The original file stays untouched; "
+            "Ctrl+Z undoes it.",
+        )
 
         self.bind("<space>", lambda e: self.toggle_play())
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -309,7 +441,8 @@ class PadWaveformViewDialog(tk.Toplevel):
             pitch_note = f", {pitch_cents:+d}c" if pitch_cents else ""
             self.info_label.config(
                 text=f"{format_duration(self.play_duration)}  \u2022  file {fs} Hz  "
-                     f"\u2022  pad export: {rate} Hz, {channel_word}{pitch_note}")
+                f"\u2022  pad export: {rate} Hz, {channel_word}{pitch_note}"
+            )
             self.render_and_draw_wave()
         except Exception as e:
             # Whatever fails here, it must not prevent __init__ from
@@ -374,7 +507,9 @@ class PadWaveformViewDialog(tk.Toplevel):
             if peak > 0:
                 region = region * (0.98 / peak)
         if has_fade:
-            region = apply_fade_envelope(region, self._wave_fs, self.fade_in_seconds, self.fade_out_seconds)
+            region = apply_fade_envelope(
+                region, self._wave_fs, self.fade_in_seconds, self.fade_out_seconds
+            )
         result = data.copy()
         result[start_i:end_i] = region
         return result
@@ -386,26 +521,50 @@ class PadWaveformViewDialog(tk.Toplevel):
 
         self.wave_canvas.delete("all")
         if self._wave_data is None:
-            self.wave_canvas.create_text(self.wave_width // 2, self.wave_height // 2,
-                                          text="(No preview)", fill=FG_MUTED)
+            self.wave_canvas.create_text(
+                self.wave_width // 2, self.wave_height // 2, text="(No preview)", fill=FG_MUTED
+            )
             return
 
         end_frac = self.view_start_frac + self.view_span_frac
         if self._wave_data_stereo is not None:
             display_stereo = self._display_data_with_edits(self._wave_data_stereo)
             half_h = self.wave_height / 2.0
-            draw_waveform_on_canvas(self.wave_canvas, display_stereo[:, 0],
-                                     self.view_start_frac, end_frac, self.wave_width, half_h,
-                                     tag="waveform", y_offset=0, clear=True)
-            draw_waveform_on_canvas(self.wave_canvas, display_stereo[:, 1],
-                                     self.view_start_frac, end_frac, self.wave_width, half_h,
-                                     tag="waveform", y_offset=half_h, clear=False)
-            self.wave_canvas.create_line(0, half_h, self.wave_width, half_h,
-                                          fill=BORDER_COLOR, width=1, tags="waveform")
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_stereo[:, 0],
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                half_h,
+                tag="waveform",
+                y_offset=0,
+                clear=True,
+            )
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_stereo[:, 1],
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                half_h,
+                tag="waveform",
+                y_offset=half_h,
+                clear=False,
+            )
+            self.wave_canvas.create_line(
+                0, half_h, self.wave_width, half_h, fill=BORDER_COLOR, width=1, tags="waveform"
+            )
         else:
             display_mono = self._display_data_with_edits(self._wave_data)
-            draw_waveform_on_canvas(self.wave_canvas, display_mono, self.view_start_frac,
-                                     end_frac, self.wave_width, self.wave_height)
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_mono,
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                self.wave_height,
+            )
         # Overlay FIRST, markers on top. The other way round (which is how
         # this used to run) painted the shaded region straight over the red
         # end marker, which is exactly where the two most often coincide -
@@ -437,9 +596,9 @@ class PadWaveformViewDialog(tk.Toplevel):
         x_cut = self.frac_to_x(limit_frac)
         if x_cut < 0 or x_cut > self.wave_width:
             return  # the cut point is outside the currently zoomed-in view
-        draw_truncate_overlay(self.wave_canvas, x_cut, self.wave_width,
-                               self.wave_height, tag="lenlimit")
-
+        draw_truncate_overlay(
+            self.wave_canvas, x_cut, self.wave_width, self.wave_height, tag="lenlimit"
+        )
 
     def _update_scrollbar_visibility(self):
         if self.zoom_factor > 1.0 and self._wave_data is not None:
@@ -519,13 +678,27 @@ class PadWaveformViewDialog(tk.Toplevel):
         x_start = self.frac_to_x(self.trim_start_frac)
         x_end = self.frac_to_x(self.trim_end_frac)
         if x_start > 0:
-            self.wave_canvas.create_rectangle(0, 0, x_start, self.wave_height,
-                                               fill=BG_DARK, stipple="gray50", outline="",
-                                               tags="marker")
+            self.wave_canvas.create_rectangle(
+                0,
+                0,
+                x_start,
+                self.wave_height,
+                fill=BG_DARK,
+                stipple="gray50",
+                outline="",
+                tags="marker",
+            )
         if x_end < self.wave_width:
-            self.wave_canvas.create_rectangle(x_end, 0, self.wave_width, self.wave_height,
-                                               fill=BG_DARK, stipple="gray50", outline="",
-                                               tags="marker")
+            self.wave_canvas.create_rectangle(
+                x_end,
+                0,
+                self.wave_width,
+                self.wave_height,
+                fill=BG_DARK,
+                stipple="gray50",
+                outline="",
+                tags="marker",
+            )
         draw_bracket_marker(self.wave_canvas, x_start, self.wave_height, ACCENT_GREEN, "start")
         draw_bracket_marker(self.wave_canvas, x_end, self.wave_height, ACCENT_RED, "end")
         self.update_duration_label()
@@ -576,16 +749,21 @@ class PadWaveformViewDialog(tk.Toplevel):
             return
         elapsed = time.time() - self.play_start_time
         override = getattr(self, "_audible_seconds", None)
-        region_duration = (override if override
-                           else self.play_duration
-                           * (self.trim_end_frac - self.trim_start_frac))
+        region_duration = (
+            override
+            if override
+            else self.play_duration * (self.trim_end_frac - self.trim_start_frac)
+        )
         frac_in_region = min(elapsed / region_duration, 1.0) if region_duration > 0 else 1.0
-        abs_frac = self.trim_start_frac + frac_in_region * (self.trim_end_frac - self.trim_start_frac)
+        abs_frac = self.trim_start_frac + frac_in_region * (
+            self.trim_end_frac - self.trim_start_frac
+        )
         x = self.frac_to_x(abs_frac)
         self.wave_canvas.delete("playhead")
         if 0 <= x <= self.wave_width:
-            self.wave_canvas.create_line(x, 0, x, self.wave_height, fill=ACCENT_BLUE, width=2,
-                                          tags="playhead")
+            self.wave_canvas.create_line(
+                x, 0, x, self.wave_height, fill=ACCENT_BLUE, width=2, tags="playhead"
+            )
         if frac_in_region < 1.0:
             self.after(30, self.update_playhead)
         else:
@@ -647,7 +825,9 @@ class PadWaveformViewDialog(tk.Toplevel):
             trimmed = False
             has_fade = False
         if not trimmed and not normalize and not has_fade:
-            dark_showinfo("Nothing to Apply", "No trim, fade or normalize changes were made.", parent=self)
+            dark_showinfo(
+                "Nothing to Apply", "No trim, fade or normalize changes were made.", parent=self
+            )
             return
         try:
             result_path = self.filepath
@@ -656,7 +836,9 @@ class PadWaveformViewDialog(tk.Toplevel):
             if normalize:
                 result_path = normalize_wav_file(result_path)
             if has_fade:
-                result_path = apply_fade_to_wav_file(result_path, self.fade_in_seconds, self.fade_out_seconds)
+                result_path = apply_fade_to_wav_file(
+                    result_path, self.fade_in_seconds, self.fade_out_seconds
+                )
         except Exception as e:
             dark_showerror("Edit Error", str(e), parent=self)
             return
@@ -676,9 +858,11 @@ class PadWaveformViewDialog(tk.Toplevel):
             # keep_settings=True below would leave the wavetable flag intact
             # on top of trimmed audio, and the exported .PRM would then state
             # a SIZE the file no longer has.
-            dark_showerror("Wavetable",
-                           "This pad holds a generated wavetable and cannot be "
-                           "edited here. Use Synth to rebuild it.")
+            dark_showerror(
+                "Wavetable",
+                "This pad holds a generated wavetable and cannot be "
+                "edited here. Use Synth to rebuild it.",
+            )
             self.stop_play()
             self.destroy()
             return

@@ -2,8 +2,8 @@
 
 import os
 import time
-import uuid
 import tkinter as tk
+import uuid
 from tkinter import ttk
 
 import numpy as np
@@ -23,43 +23,74 @@ try:
 except ImportError:
     AudioSegment = None
 
-from pyp6.constants import (
-    UI_FAMILY, AUDIO_PREVIEW_MIN_W, AUDIO_PREVIEW_MIN_H,
-    CHOP_MIN_W, CHOP_MIN_H, MAX_SECONDS,
-    SLICE_COUNTS, TARGET_RATES,
-    NORMALIZE_MODES, NORMALIZE_MODE_KEYS,
-    WT_SR, WT_DRAW_POINTS,
-)
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_GREEN, ACCENT_RED, ACCENT_ORANGE,
-    BORDER_COLOR, WAVE_BG,
-    BTN_BLUE, BTN_GREEN,
-)
-from pyp6.config import (
-    temp_path, load_default_autoplay, load_default_slices,
-    format_duration, format_size,
-)
-from pyp6.audio.playback import PYDUB_AVAILABLE
-from pyp6.audio.info import get_audio_duration_seconds
-from pyp6.audio.processing import (
-    trim_wav_file, normalize_wav_file, ensure_mono_wav, apply_micro_fade,
+    ACCENT_BLUE,
+    ACCENT_GREEN,
+    ACCENT_ORANGE,
+    ACCENT_RED,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BTN_BLUE,
+    BTN_GREEN,
+    FG_MUTED,
+    FG_TEXT,
+    WAVE_BG,
 )
 from pyp6.audio.conversion import build_chop_file
-from pyp6.synth.waveforms import wt_cycle_tone
-from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel, RoundedScrollbar
-from pyp6.ui.waveform import (
-    draw_bracket_marker, max_zoom_for, min_trim_fraction,
-    draw_waveform_on_canvas, draw_truncate_overlay,
+from pyp6.audio.info import get_audio_duration_seconds
+from pyp6.audio.playback import PYDUB_AVAILABLE
+from pyp6.audio.processing import (
+    apply_micro_fade,
+    ensure_mono_wav,
+    normalize_wav_file,
+    trim_wav_file,
 )
+from pyp6.config import (
+    format_duration,
+    format_size,
+    load_default_autoplay,
+    load_default_slices,
+    temp_path,
+)
+from pyp6.constants import (
+    AUDIO_PREVIEW_MIN_H,
+    AUDIO_PREVIEW_MIN_W,
+    CHOP_MIN_H,
+    CHOP_MIN_W,
+    MAX_SECONDS,
+    NORMALIZE_MODE_KEYS,
+    NORMALIZE_MODES,
+    SLICE_COUNTS,
+    TARGET_RATES,
+    UI_FAMILY,
+    WT_DRAW_POINTS,
+    WT_SR,
+)
+from pyp6.synth.waveforms import wt_cycle_tone
 from pyp6.ui.dialogs_common import (
-    style_toplevel, style_label, style_listbox, style_checkbutton,
-    ensure_dark_treeview_style, add_focus_border,
-    center_toplevel_on_parent,
-    dark_showinfo, dark_showwarning, dark_showerror, dark_askyesno,
+    add_focus_border,
     add_tooltip,
+    center_toplevel_on_parent,
+    dark_askyesno,
+    dark_showerror,
+    dark_showinfo,
+    dark_showwarning,
+    ensure_dark_treeview_style,
+    style_checkbutton,
+    style_label,
+    style_toplevel,
 )
 from pyp6.ui.nav_mixin import FolderNavMixin
+from pyp6.ui.waveform import (
+    draw_bracket_marker,
+    draw_truncate_overlay,
+    draw_waveform_on_canvas,
+    max_zoom_for,
+    min_trim_fraction,
+)
+from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel, RoundedScrollbar
 
 
 class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
@@ -69,14 +100,13 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
         # as a held note at that pitch instead of being played at their own
         # length, which for a 7 ms cycle is just a tick.
         self.cycle_hz = cycle_hz
-        self.title("Select Single-Cycle Waveform" if cycle_hz
-                   else "Select Sample (with Preview)")
+        self.title("Select Single-Cycle Waveform" if cycle_hz else "Select Sample (with Preview)")
         self.geometry(f"{AUDIO_PREVIEW_MIN_W}x{AUDIO_PREVIEW_MIN_H}")
         self.minsize(AUDIO_PREVIEW_MIN_W, AUDIO_PREVIEW_MIN_H)
         style_toplevel(self)
-        self.selected_path = None        # RESULT - only ever set by on_confirm()
+        self.selected_path = None  # RESULT - only ever set by on_confirm()
         self.selected_display_name = None
-        self.preview_path = None         # what's merely highlighted in the list
+        self.preview_path = None  # what's merely highlighted in the list
         self.current_dir = initial_dir or os.path.expanduser("~")
         self.autoplay_var = tk.BooleanVar(value=load_default_autoplay())
         self._sort_column = None  # None = default (name), else "name"/"length"/"size"
@@ -86,26 +116,42 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
 
         ensure_dark_treeview_style()
         if cycle_hz:
-            note = tk.Label(self, anchor="w",
-                            text=f"Previewing as a held note at "
-                                 f"{cycle_hz:.2f} Hz \u00b7 the file's own sample "
-                                 f"rate and length do not affect the pitch")
+            note = tk.Label(
+                self,
+                anchor="w",
+                text=f"Previewing as a held note at "
+                f"{cycle_hz:.2f} Hz \u00b7 the file's own sample "
+                f"rate and length do not affect the pitch",
+            )
             style_label(note, fg=ACCENT_BLUE, font=(UI_FAMILY, 8))
             note.pack(fill="x", padx=10, pady=(0, 2))
-        list_panel = RoundedPanel(self, title="Samples", parent_bg=BG_DARK,
-                                  panel_bg=BG_PANEL, radius=12,
-                                  title_font=(UI_FAMILY, 9, "bold"),
-                                  body_padx=10, body_pady=(24, 8))
+        list_panel = RoundedPanel(
+            self,
+            title="Samples",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         list_panel.pack(fill="both", expand=True, padx=10, pady=(0, 6))
         list_frame = tk.Frame(list_panel.body, bg=BG_PANEL)
         list_frame.pack(fill="both", expand=True)
         scrollbar = RoundedScrollbar(list_frame, orient="vertical", parent_bg=BG_PANEL)
         scrollbar.pack(side="right", fill="y", padx=(3, 0))
-        self.listbox = ttk.Treeview(list_frame, columns=("length", "size"), show="tree headings",
-                                     selectmode="browse", yscrollcommand=scrollbar.set,
-                                     style="Dark.Treeview")
+        self.listbox = ttk.Treeview(
+            list_frame,
+            columns=("length", "size"),
+            show="tree headings",
+            selectmode="browse",
+            yscrollcommand=scrollbar.set,
+            style="Dark.Treeview",
+        )
         self.listbox.heading("#0", text="Name", anchor="w", command=lambda: self._sort_by("name"))
-        self.listbox.heading("length", text="Length", anchor="e", command=lambda: self._sort_by("length"))
+        self.listbox.heading(
+            "length", text="Length", anchor="e", command=lambda: self._sort_by("length")
+        )
         self.listbox.heading("size", text="Size", anchor="e", command=lambda: self._sort_by("size"))
         self.listbox.column("#0", anchor="w", width=380, stretch=True)
         self.listbox.column("length", anchor="e", width=80, stretch=False)
@@ -117,50 +163,89 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
         self.listbox.bind("<Double-Button-1>", self.on_confirm)
         self.listbox.bind("<BackSpace>", lambda e: self.go_up())
 
-        wave_panel = RoundedPanel(self, title="Waveform / Trim", parent_bg=BG_DARK,
-                                  panel_bg=BG_PANEL, radius=12,
-                                  title_font=(UI_FAMILY, 9, "bold"),
-                                  body_padx=10, body_pady=(24, 8))
+        wave_panel = RoundedPanel(
+            self,
+            title="Waveform / Trim",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         # Fixed height, like the Chop dialog: only the list above expands, so
         # the scrollbar that appears when zooming in takes its space from the
         # list rather than pushing the button row off the bottom.
         wave_panel.pack(fill="x", padx=10, pady=(0, 4))
         autoplay_row = tk.Frame(wave_panel.body, bg=BG_PANEL)
         autoplay_row.pack(fill="x")
-        autoplay_cb = tk.Checkbutton(autoplay_row, text="Autoplay (play sound on click)",
-                              variable=self.autoplay_var)
+        autoplay_cb = tk.Checkbutton(
+            autoplay_row, text="Autoplay (play sound on click)", variable=self.autoplay_var
+        )
         style_checkbutton(autoplay_cb, bg=BG_PANEL)
         autoplay_cb.pack(side="left")
-        add_tooltip(autoplay_cb,
-                    "Plays a sample as soon as you select it in the list.\nThe "
-                    "starting position of this switch is set under "
-                    "Settings \u2192 Defaults.")
+        add_tooltip(
+            autoplay_cb,
+            "Plays a sample as soon as you select it in the list.\nThe "
+            "starting position of this switch is set under "
+            "Settings \u2192 Defaults.",
+        )
 
         self.normalize_var = tk.BooleanVar(value=False)
-        normalize_cb = tk.Checkbutton(autoplay_row, text="Normalize", variable=self.normalize_var,
-                                       command=self._render_wave_at_current_view)
+        normalize_cb = tk.Checkbutton(
+            autoplay_row,
+            text="Normalize",
+            variable=self.normalize_var,
+            command=self._render_wave_at_current_view,
+        )
         style_checkbutton(normalize_cb, bg=BG_PANEL)
         normalize_cb.pack(side="left", padx=(12, 0))
-        add_tooltip(normalize_cb,
-                    "Lifts the sample to its maximum level without clipping. Applied when "
-                    "you press \"Select\".")
+        add_tooltip(
+            normalize_cb,
+            "Lifts the sample to its maximum level without clipping. Applied when "
+            'you press "Select".',
+        )
 
         zoom_row = tk.Frame(autoplay_row, bg=BG_PANEL)
         zoom_row.pack(side="left", padx=(16, 0))
-        zoom_out_btn = RoundedButton(zoom_row, text="\u2212", command=self.zoom_out,
-                                      bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                      width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        zoom_out_btn = RoundedButton(
+            zoom_row,
+            text="\u2212",
+            command=self.zoom_out,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         zoom_out_btn.pack(side="left", padx=1)
         self.zoom_label = tk.Label(zoom_row, text="1.0x")
         style_label(self.zoom_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8, "bold"))
         self.zoom_label.pack(side="left", padx=4)
-        zoom_in_btn = RoundedButton(zoom_row, text="+", command=self.zoom_in,
-                                     bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                     width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        zoom_in_btn = RoundedButton(
+            zoom_row,
+            text="+",
+            command=self.zoom_in,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         zoom_in_btn.pack(side="left", padx=1)
-        zoom_reset_btn = RoundedButton(zoom_row, text="Reset", command=self.zoom_reset,
-                                        bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                        width=55, height=22, font=(UI_FAMILY, 8, "bold"))
+        zoom_reset_btn = RoundedButton(
+            zoom_row,
+            text="Reset",
+            command=self.zoom_reset,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=55,
+            height=22,
+            font=(UI_FAMILY, 8, "bold"),
+        )
         zoom_reset_btn.pack(side="left", padx=(6, 0))
 
         self.duration_label = tk.Label(autoplay_row, text="")
@@ -169,23 +254,35 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
 
         self.wave_width = 480
         self.wave_height = 144
-        self.wave_canvas = tk.Canvas(wave_panel.body, bg=WAVE_BG, width=self.wave_width,
-                                      height=self.wave_height, highlightthickness=0,
-                                      cursor="sb_h_double_arrow")
+        self.wave_canvas = tk.Canvas(
+            wave_panel.body,
+            bg=WAVE_BG,
+            width=self.wave_width,
+            height=self.wave_height,
+            highlightthickness=0,
+            cursor="sb_h_double_arrow",
+        )
         self.wave_canvas.pack(fill="x", pady=(8, 2))
-        add_tooltip(self.wave_canvas,
-                    "Drag the green (start) and red (end) markers to load only that "
-                    "region onto the pad. \"Reset\" returns the zoom to the full view - "
-                    "it does not move the markers back.")
+        add_tooltip(
+            self.wave_canvas,
+            "Drag the green (start) and red (end) markers to load only that "
+            'region onto the pad. "Reset" returns the zoom to the full view - '
+            "it does not move the markers back.",
+        )
         self.wave_canvas.bind("<Configure>", self._on_wave_canvas_resize)
-        self.wave_scrollbar = RoundedScrollbar(wave_panel.body, orient="horizontal",
-                                               command=self.on_wave_scroll,
-                                               parent_bg=BG_PANEL, auto_hide=False)
+        self.wave_scrollbar = RoundedScrollbar(
+            wave_panel.body,
+            orient="horizontal",
+            command=self.on_wave_scroll,
+            parent_bg=BG_PANEL,
+            auto_hide=False,
+        )
         # Holds the scrollbar's height while it is hidden, so showing it
         # later costs nothing and cannot push the button row out of the
         # window. Same height and padding as the scrollbar itself.
-        self._zoom_spacer = tk.Frame(wave_panel.body, bg=BG_PANEL,
-                                      height=RoundedScrollbar.THICKNESS)
+        self._zoom_spacer = tk.Frame(
+            wave_panel.body, bg=BG_PANEL, height=RoundedScrollbar.THICKNESS
+        )
         self._zoom_spacer.pack_propagate(False)
         # Packed straight away: the window sizes itself from its contents when
         # it opens, so the space has to be accounted for from the start.
@@ -206,7 +303,7 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
         self.zoom_factor = 1.0
         self.view_start_frac = 0.0
         self.view_span_frac = 1.0
-        self.center_frac = 0.5   # what the zoomed view is focused on
+        self.center_frac = 0.5  # what the zoomed view is focused on
 
         self.wave_canvas.bind("<ButtonPress-1>", self.on_wave_press)
         self.wave_canvas.bind("<B1-Motion>", self.on_wave_drag)
@@ -217,21 +314,43 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
 
         btn_row = tk.Frame(self, padx=10, pady=10, bg=BG_DARK)
         btn_row.pack(fill="x")
-        self.preview_btn = RoundedButton(btn_row, text="\u25b6 Preview", command=self.toggle_preview,
-                                          bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK, width=110)
+        self.preview_btn = RoundedButton(
+            btn_row,
+            text="\u25b6 Preview",
+            command=self.toggle_preview,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=110,
+        )
         self.preview_btn.pack(side="left", padx=4)
-        add_tooltip(self.preview_btn,
-                    "Plays the marked region, or the whole sample if no markers are "
-                    "set.\nShortcut: Space")
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self.on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK)
+        add_tooltip(
+            self.preview_btn,
+            "Plays the marked region, or the whole sample if no markers are set.\nShortcut: Space",
+        )
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self.on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+        )
         cancel_btn.pack(side="right", padx=4)
-        select_btn = RoundedButton(btn_row, text="Select", command=self.on_confirm,
-                                    bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK)
+        select_btn = RoundedButton(
+            btn_row,
+            text="Select",
+            command=self.on_confirm,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+        )
         select_btn.pack(side="right", padx=4)
-        add_tooltip(select_btn,
-                    "Loads the sample onto the pad. Trim and Normalize are written to a "
-                    "new file in the temp folder - the original stays untouched.")
+        add_tooltip(
+            select_btn,
+            "Loads the sample onto the pad. Trim and Normalize are written to a "
+            "new file in the temp folder - the original stays untouched.",
+        )
 
         self.bind("<space>", self._on_space_key)
         # Without this, closing via the window manager's X skips on_cancel():
@@ -247,7 +366,7 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
     def _on_space_key(self, event):
         """Space plays the current sample - except while typing in a text
         field (address bar etc.), where it should just type a space."""
-        if isinstance(self.focus_get(), (tk.Entry,)):
+        if isinstance(self.focus_get(), tk.Entry):
             return
         self.preview_selected()
         return "break"
@@ -279,6 +398,7 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             if self._sort_column == col:
                 return base + (" \u25bc" if self._sort_reverse else " \u25b2")
             return base
+
         self.listbox.heading("#0", text=label("Name", "name"))
         self.listbox.heading("length", text=label("Length", "length"))
         self.listbox.heading("size", text=label("Size", "size"))
@@ -323,8 +443,13 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
         for entry, duration, size in files:
             idx = len(self._entries)
             self._entries.append(entry)
-            self.listbox.insert("", tk.END, iid=str(idx), text=entry,
-                                 values=(format_duration(duration), format_size(size)))
+            self.listbox.insert(
+                "",
+                tk.END,
+                iid=str(idx),
+                text=entry,
+                values=(format_duration(duration), format_size(size)),
+            )
         self._update_sort_headers()
 
     def get_selected_entry(self):
@@ -363,8 +488,9 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             except Exception:
                 self._wave_data = None
                 self.wave_canvas.delete("all")
-                self.wave_canvas.create_text(self.wave_width // 2, self.wave_height // 2,
-                                              text="(No preview)", fill=FG_MUTED)
+                self.wave_canvas.create_text(
+                    self.wave_width // 2, self.wave_height // 2, text="(No preview)", fill=FG_MUTED
+                )
                 return
 
         self.current_audio_path = wav_path
@@ -429,7 +555,6 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
         if changed and self._wave_data is not None:
             self._render_wave_at_current_view()
 
-
     def _display_data_with_edits(self, data):
         """Returns a copy of the FULL (untrimmed) waveform data with
         Normalize applied only within the trim region - so the preview
@@ -459,26 +584,50 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
 
         self.wave_canvas.delete("all")
         if self._wave_data is None:
-            self.wave_canvas.create_text(self.wave_width // 2, self.wave_height // 2,
-                                          text="(No preview)", fill=FG_MUTED)
+            self.wave_canvas.create_text(
+                self.wave_width // 2, self.wave_height // 2, text="(No preview)", fill=FG_MUTED
+            )
             return
 
         end_frac = self.view_start_frac + self.view_span_frac
         if self._wave_data_stereo is not None:
             display_stereo = self._display_data_with_edits(self._wave_data_stereo)
             half_h = self.wave_height / 2.0
-            draw_waveform_on_canvas(self.wave_canvas, display_stereo[:, 0],
-                                     self.view_start_frac, end_frac, self.wave_width, half_h,
-                                     tag="waveform", y_offset=0, clear=True)
-            draw_waveform_on_canvas(self.wave_canvas, display_stereo[:, 1],
-                                     self.view_start_frac, end_frac, self.wave_width, half_h,
-                                     tag="waveform", y_offset=half_h, clear=False)
-            self.wave_canvas.create_line(0, half_h, self.wave_width, half_h,
-                                          fill=BORDER_COLOR, width=1, tags="waveform")
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_stereo[:, 0],
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                half_h,
+                tag="waveform",
+                y_offset=0,
+                clear=True,
+            )
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_stereo[:, 1],
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                half_h,
+                tag="waveform",
+                y_offset=half_h,
+                clear=False,
+            )
+            self.wave_canvas.create_line(
+                0, half_h, self.wave_width, half_h, fill=BORDER_COLOR, width=1, tags="waveform"
+            )
         else:
             display_mono = self._display_data_with_edits(self._wave_data)
-            draw_waveform_on_canvas(self.wave_canvas, display_mono, self.view_start_frac,
-                                     end_frac, self.wave_width, self.wave_height)
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_mono,
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                self.wave_height,
+            )
         self.redraw_markers()
 
     def _update_scrollbar_visibility(self):
@@ -548,13 +697,27 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
         x_start = self.frac_to_x(self.trim_start_frac)
         x_end = self.frac_to_x(self.trim_end_frac)
         if x_start > 0:
-            self.wave_canvas.create_rectangle(0, 0, x_start, self.wave_height,
-                                               fill=BG_DARK, stipple="gray50", outline="",
-                                               tags="marker")
+            self.wave_canvas.create_rectangle(
+                0,
+                0,
+                x_start,
+                self.wave_height,
+                fill=BG_DARK,
+                stipple="gray50",
+                outline="",
+                tags="marker",
+            )
         if x_end < self.wave_width:
-            self.wave_canvas.create_rectangle(x_end, 0, self.wave_width, self.wave_height,
-                                               fill=BG_DARK, stipple="gray50", outline="",
-                                               tags="marker")
+            self.wave_canvas.create_rectangle(
+                x_end,
+                0,
+                self.wave_width,
+                self.wave_height,
+                fill=BG_DARK,
+                stipple="gray50",
+                outline="",
+                tags="marker",
+            )
         draw_bracket_marker(self.wave_canvas, x_start, self.wave_height, ACCENT_GREEN, "start")
         draw_bracket_marker(self.wave_canvas, x_end, self.wave_height, ACCENT_RED, "end")
         self.update_duration_label()
@@ -573,7 +736,8 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             fs = getattr(self, "_wave_fs", None) or WT_SR
             usable = min(frames // 2, WT_DRAW_POINTS // 2)
             self.duration_label.config(
-                text=f"{frames} frames @ {int(fs)} Hz  \u00b7  {usable} harmonics")
+                text=f"{frames} frames @ {int(fs)} Hz  \u00b7  {usable} harmonics"
+            )
             return
         if self.play_duration <= 0:
             self.duration_label.config(text="")
@@ -633,15 +797,21 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             return
         elapsed = time.time() - self.play_start_time
         override = getattr(self, "_audible_seconds", None)
-        region_duration = (override if override
-                           else self.play_duration
-                           * (self.trim_end_frac - self.trim_start_frac))
+        region_duration = (
+            override
+            if override
+            else self.play_duration * (self.trim_end_frac - self.trim_start_frac)
+        )
         frac_in_region = min(elapsed / region_duration, 1.0) if region_duration > 0 else 1.0
-        abs_frac = self.trim_start_frac + frac_in_region * (self.trim_end_frac - self.trim_start_frac)
+        abs_frac = self.trim_start_frac + frac_in_region * (
+            self.trim_end_frac - self.trim_start_frac
+        )
         x = self.frac_to_x(abs_frac)
         self.wave_canvas.delete("playhead")
         if 0 <= x <= self.wave_width:
-            self.wave_canvas.create_line(x, 0, x, self.wave_height, fill=ACCENT_BLUE, width=2, tags="playhead")
+            self.wave_canvas.create_line(
+                x, 0, x, self.wave_height, fill=ACCENT_BLUE, width=2, tags="playhead"
+            )
         if frac_in_region < 1.0:
             self.after(30, self.update_playhead)
         else:
@@ -685,7 +855,9 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
                 result_path = normalize_wav_file(result_path)
                 name_suffix += " (normalized)"
             except Exception as e:
-                dark_showerror("Normalize Error", f"Could not normalize the sample:\n{e}", parent=self)
+                dark_showerror(
+                    "Normalize Error", f"Could not normalize the sample:\n{e}", parent=self
+                )
                 return
 
         self.selected_path = result_path
@@ -710,7 +882,9 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             play_path = path
             if path.lower().endswith(".mp3"):
                 if not PYDUB_AVAILABLE:
-                    dark_showerror("pydub missing", "Previewing MP3 requires pydub + ffmpeg.", parent=self)
+                    dark_showerror(
+                        "pydub missing", "Previewing MP3 requires pydub + ffmpeg.", parent=self
+                    )
                     return
                 sound = AudioSegment.from_file(path)
                 tmp_preview = temp_path("preview_tmp.wav")
@@ -768,7 +942,6 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
         self.destroy()
 
 
-
 class ChopDialog(FolderNavMixin, tk.Toplevel):
     """All-in-one Chop window: a Browse pane (left) to find samples, a
     Selected pane (right) showing the chop order, and a shared waveform view
@@ -787,28 +960,28 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         self.selected_display_names = []
         self._entries = []
         self.autoplay_var = tk.BooleanVar(value=load_default_autoplay())
-        self._sort_column = None           # Browse list sort state (Selected list is never sorted -
-        self._sort_reverse = False         # only the real chop order matters there)
+        self._sort_column = None  # Browse list sort state (Selected list is never sorted -
+        self._sort_reverse = False  # only the real chop order matters there)
 
         # Shared waveform/trim state -----------------------------------
         self.wave_width = 960
         self.wave_height = 162
-        self.wave_mode = "browse"          # "browse" (draggable markers) or "selected" (view only)
-        self.current_audio_path = None     # decoded-to-wav path backing the waveform/trim/preview
-        self.browse_source_path = None     # original file behind the currently loaded BROWSE item
+        self.wave_mode = "browse"  # "browse" (draggable markers) or "selected" (view only)
+        self.current_audio_path = None  # decoded-to-wav path backing the waveform/trim/preview
+        self.browse_source_path = None  # original file behind the currently loaded BROWSE item
         self.trim_start_frac = 0.0
         self.trim_end_frac = 1.0
         self.drag_target = None
         self.is_playing = False
         self.play_start_time = None
         self.play_duration = 0.0
-        self._wave_data = None             # cached mono float32 samples of current_audio_path
-        self._wave_data_stereo = None      # (n, channels) raw data when the sample is stereo
+        self._wave_data = None  # cached mono float32 samples of current_audio_path
+        self._wave_data_stereo = None  # (n, channels) raw data when the sample is stereo
         self._wave_fs = None
-        self.zoom_factor = 1.0             # 1.0 = whole file visible
-        self.view_start_frac = 0.0         # left edge of the visible window (fraction of full duration)
-        self.view_span_frac = 1.0          # width of the visible window (fraction of full duration)
-        self.center_frac = 0.5             # what the zoomed view is focused on
+        self.zoom_factor = 1.0  # 1.0 = whole file visible
+        self.view_start_frac = 0.0  # left edge of the visible window (fraction of full duration)
+        self.view_span_frac = 1.0  # width of the visible window (fraction of full duration)
+        self.center_frac = 0.5  # what the zoomed view is focused on
 
         self._build_nav_bar(container_bg=BG_DARK)
 
@@ -827,24 +1000,36 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         # The heading lives on the panel now, so the separate title Label is
         # gone. `left` stays pointing at the panel body, which keeps every
         # child below unchanged apart from its background.
-        left_panel = RoundedPanel(panes, title="Browse", parent_bg=BG_DARK,
-                                   panel_bg=BG_PANEL, radius=12,
-                                   title_font=(UI_FAMILY, 9, "bold"),
-                                   body_padx=10, body_pady=(24, 8))
+        left_panel = RoundedPanel(
+            panes,
+            title="Browse",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         left = left_panel.body
 
         ensure_dark_treeview_style()
         left_list_frame = tk.Frame(left, bg=BG_PANEL)
         left_list_frame.pack(fill="both", expand=True)
-        left_scrollbar = RoundedScrollbar(left_list_frame, orient="vertical",
-                                           parent_bg=BG_PANEL)
+        left_scrollbar = RoundedScrollbar(left_list_frame, orient="vertical", parent_bg=BG_PANEL)
         left_scrollbar.pack(side="right", fill="y", padx=(3, 0))
-        self.listbox = ttk.Treeview(left_list_frame, columns=("length", "size"), show="tree headings",
-                                     selectmode="extended", yscrollcommand=left_scrollbar.set,
-                                     style="Dark.Treeview")
+        self.listbox = ttk.Treeview(
+            left_list_frame,
+            columns=("length", "size"),
+            show="tree headings",
+            selectmode="extended",
+            yscrollcommand=left_scrollbar.set,
+            style="Dark.Treeview",
+        )
         self.listbox.heading("#0", text="Name", anchor="w", command=lambda: self._sort_by("name"))
-        self.listbox.heading("length", text="Length", anchor="e", command=lambda: self._sort_by("length"))
+        self.listbox.heading(
+            "length", text="Length", anchor="e", command=lambda: self._sort_by("length")
+        )
         self.listbox.heading("size", text="Size", anchor="e", command=lambda: self._sort_by("size"))
         self.listbox.column("#0", anchor="w", width=180, stretch=True)
         self.listbox.column("length", anchor="e", width=60, stretch=False)
@@ -856,60 +1041,98 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         self.listbox.bind("<<TreeviewSelect>>", self.on_browse_select)
         self.listbox.bind("<BackSpace>", lambda e: self.go_up())
 
-
         # --- MIDDLE: transfer column ---
         mid = tk.Frame(panes, bg=BG_DARK)
-        mid.grid(row=0, column=1, padx=4)     # no sticky: centred on the lists
+        mid.grid(row=0, column=1, padx=4)  # no sticky: centred on the lists
         for txt, cmd, tip in (
-                ("\u2192", self.add_selected,
-                 "Adds the sample(s) highlighted on the left to the chop order.\n"
-                 "With trim markers set, only the marked region is added - so you "
-                 "can pull several regions out of one long file."),
-                ("\u2190", self.remove_from_selection,
-                 "Takes the highlighted entries back out of the chop order. The "
-                 "files themselves are untouched.\nShortcut: Del or Backspace"),
-                ("\u25b2", self.move_up,
-                 "Moves the highlighted entry one slice earlier. The order in the "
-                 "right-hand list is the slice order on the P-6.\nShortcut: Alt+Up"),
-                ("\u25bc", self.move_down,
-                 "Moves the highlighted entry one slice later.\nShortcut: Alt+Down")):
-            b = RoundedButton(mid, text=txt, command=cmd, bg=BG_INPUT, fg=FG_TEXT,
-                              parent_bg=BG_DARK, width=40, height=26,
-                              font=(UI_FAMILY, 10, "bold"))
+            (
+                "\u2192",
+                self.add_selected,
+                "Adds the sample(s) highlighted on the left to the chop order.\n"
+                "With trim markers set, only the marked region is added - so you "
+                "can pull several regions out of one long file.",
+            ),
+            (
+                "\u2190",
+                self.remove_from_selection,
+                "Takes the highlighted entries back out of the chop order. The "
+                "files themselves are untouched.\nShortcut: Del or Backspace",
+            ),
+            (
+                "\u25b2",
+                self.move_up,
+                "Moves the highlighted entry one slice earlier. The order in the "
+                "right-hand list is the slice order on the P-6.\nShortcut: Alt+Up",
+            ),
+            (
+                "\u25bc",
+                self.move_down,
+                "Moves the highlighted entry one slice later.\nShortcut: Alt+Down",
+            ),
+        ):
+            b = RoundedButton(
+                mid,
+                text=txt,
+                command=cmd,
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                parent_bg=BG_DARK,
+                width=40,
+                height=26,
+                font=(UI_FAMILY, 10, "bold"),
+            )
             b.pack(pady=3)
             add_tooltip(b, tip)
 
         # Preview sits with the transfer buttons rather than under one list,
         # since it plays whichever list last fed the waveform view. Glyph only:
         # the word would have set the column's width for all five buttons.
-        self.browse_preview_btn = RoundedButton(mid, text="\u25b6", command=self.toggle_preview,
-                                                 bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK,
-                                                 width=40, height=26,
-                                                 font=(UI_FAMILY, 10, "bold"))
+        self.browse_preview_btn = RoundedButton(
+            mid,
+            text="\u25b6",
+            command=self.toggle_preview,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=40,
+            height=26,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         self.browse_preview_btn.pack(pady=(14, 3))
-        add_tooltip(self.browse_preview_btn,
-                    "Plays whatever the waveform view below is showing - a browsed "
-                    "sample, or an entry from the chop order at its target rate and "
-                    "channel count. With trim markers set, only the marked region is "
-                    "played.\nShortcut: Space")
+        add_tooltip(
+            self.browse_preview_btn,
+            "Plays whatever the waveform view below is showing - a browsed "
+            "sample, or an entry from the chop order at its target rate and "
+            "channel count. With trim markers set, only the marked region is "
+            "played.\nShortcut: Space",
+        )
 
         # --- RIGHT: Selected ---
-        self.selected_panel = RoundedPanel(panes, title="Chop Order: 0",
-                                            parent_bg=BG_DARK, panel_bg=BG_PANEL,
-                                            radius=12,
-                                            title_font=(UI_FAMILY, 9, "bold"),
-                                            body_padx=10, body_pady=(24, 8))
+        self.selected_panel = RoundedPanel(
+            panes,
+            title="Chop Order: 0",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         self.selected_panel.grid(row=0, column=2, sticky="nsew", padx=(4, 0))
         right = self.selected_panel.body
 
         right_list_frame = tk.Frame(right, bg=BG_PANEL)
         right_list_frame.pack(fill="both", expand=True)
-        right_scrollbar = RoundedScrollbar(right_list_frame, orient="vertical",
-                                            parent_bg=BG_PANEL)
+        right_scrollbar = RoundedScrollbar(right_list_frame, orient="vertical", parent_bg=BG_PANEL)
         right_scrollbar.pack(side="right", fill="y", padx=(3, 0))
-        self.selected_listbox = ttk.Treeview(right_list_frame, columns=("no", "name", "length", "size"),
-                                              show="headings", selectmode="extended",
-                                              yscrollcommand=right_scrollbar.set, style="Dark.Treeview")
+        self.selected_listbox = ttk.Treeview(
+            right_list_frame,
+            columns=("no", "name", "length", "size"),
+            show="headings",
+            selectmode="extended",
+            yscrollcommand=right_scrollbar.set,
+            style="Dark.Treeview",
+        )
         self.selected_listbox.heading("no", text="No.", anchor="w")
         self.selected_listbox.heading("name", text="Name", anchor="w")
         self.selected_listbox.heading("length", text="Length", anchor="e")
@@ -932,10 +1155,16 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         self.selected_listbox.bind("<BackSpace>", lambda e: self.remove_from_selection())
 
         # ----- shared waveform / trim view -----
-        wave_panel = RoundedPanel(self, title="Waveform / Trim", parent_bg=BG_DARK,
-                                   panel_bg=BG_PANEL, radius=12,
-                                   title_font=(UI_FAMILY, 9, "bold"),
-                                   body_padx=10, body_pady=(24, 8))
+        wave_panel = RoundedPanel(
+            self,
+            title="Waveform / Trim",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         wave_panel.pack(fill="x", padx=10, pady=(4, 0))
         wave_wrap = wave_panel.body
 
@@ -944,61 +1173,99 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         self.wave_name_label = tk.Label(wave_header, text="No sample loaded")
         style_label(self.wave_name_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 9))
         self.wave_name_label.pack(side="left")
-        autoplay_cb = tk.Checkbutton(wave_header, text="Autoplay on click", variable=self.autoplay_var)
+        autoplay_cb = tk.Checkbutton(
+            wave_header, text="Autoplay on click", variable=self.autoplay_var
+        )
         style_checkbutton(autoplay_cb, bg=BG_PANEL)
         autoplay_cb.pack(side="left", padx=(16, 0))
-        add_tooltip(autoplay_cb,
-                    "Plays a sample as soon as you click it in either list.\nThe "
-                    "starting position of this switch is set under "
-                    "Settings \u2192 Defaults.")
+        add_tooltip(
+            autoplay_cb,
+            "Plays a sample as soon as you click it in either list.\nThe "
+            "starting position of this switch is set under "
+            "Settings \u2192 Defaults.",
+        )
 
         zoom_row = tk.Frame(wave_header, bg=BG_PANEL)
         zoom_row.pack(side="left", padx=(16, 0))
-        zoom_out_btn = RoundedButton(zoom_row, text="\u2212", command=self.zoom_out,
-                                      bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                      width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        zoom_out_btn = RoundedButton(
+            zoom_row,
+            text="\u2212",
+            command=self.zoom_out,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         zoom_out_btn.pack(side="left", padx=1)
         self.zoom_label = tk.Label(zoom_row, text="1.0x")
         style_label(self.zoom_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8, "bold"))
         self.zoom_label.pack(side="left", padx=4)
-        zoom_in_btn = RoundedButton(zoom_row, text="+", command=self.zoom_in,
-                                     bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                     width=28, height=22, font=(UI_FAMILY, 10, "bold"))
+        zoom_in_btn = RoundedButton(
+            zoom_row,
+            text="+",
+            command=self.zoom_in,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=28,
+            height=22,
+            font=(UI_FAMILY, 10, "bold"),
+        )
         zoom_in_btn.pack(side="left", padx=1)
-        zoom_reset_btn = RoundedButton(zoom_row, text="Reset", command=self.zoom_reset,
-                                        bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL,
-                                        width=55, height=22, font=(UI_FAMILY, 8, "bold"))
+        zoom_reset_btn = RoundedButton(
+            zoom_row,
+            text="Reset",
+            command=self.zoom_reset,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=55,
+            height=22,
+            font=(UI_FAMILY, 8, "bold"),
+        )
         zoom_reset_btn.pack(side="left", padx=(6, 0))
 
         self.duration_label = tk.Label(wave_header, text="")
         style_label(self.duration_label, bg=BG_PANEL, fg=ACCENT_BLUE, font=(UI_FAMILY, 9, "bold"))
         self.duration_label.pack(side="right")
 
-        self.wave_canvas = tk.Canvas(wave_wrap, bg=WAVE_BG, width=self.wave_width,
-                                      height=self.wave_height, highlightthickness=0,
-                                      cursor="sb_h_double_arrow")
+        self.wave_canvas = tk.Canvas(
+            wave_wrap,
+            bg=WAVE_BG,
+            width=self.wave_width,
+            height=self.wave_height,
+            highlightthickness=0,
+            cursor="sb_h_double_arrow",
+        )
         self.wave_canvas.pack(fill="x", pady=(4, 2))
-        add_tooltip(self.wave_canvas,
-                    "Drag the green (start) and red (end) markers to mark a region. "
-                    "The scrollbar appears once you are zoomed in. Markers only work on "
-                    "samples from \"Browse\".")
+        add_tooltip(
+            self.wave_canvas,
+            "Drag the green (start) and red (end) markers to mark a region. "
+            "The scrollbar appears once you are zoomed in. Markers only work on "
+            'samples from "Browse".',
+        )
         self.wave_canvas.bind("<Configure>", self._on_wave_canvas_resize)
         self.waveform_img = None
         self.wave_canvas.bind("<ButtonPress-1>", self.on_wave_press)
         self.wave_canvas.bind("<B1-Motion>", self.on_wave_drag)
         self.wave_canvas.bind("<ButtonRelease-1>", self.on_wave_release)
-        self.wave_canvas.bind("<MouseWheel>", self.on_wave_mousewheel)   # Windows / macOS
-        self.wave_canvas.bind("<Button-4>", self.on_wave_mousewheel)     # Linux scroll up
-        self.wave_canvas.bind("<Button-5>", self.on_wave_mousewheel)     # Linux scroll down
+        self.wave_canvas.bind("<MouseWheel>", self.on_wave_mousewheel)  # Windows / macOS
+        self.wave_canvas.bind("<Button-4>", self.on_wave_mousewheel)  # Linux scroll up
+        self.wave_canvas.bind("<Button-5>", self.on_wave_mousewheel)  # Linux scroll down
 
-        self.wave_scrollbar = RoundedScrollbar(wave_wrap, orient="horizontal",
-                                               command=self.on_wave_scroll,
-                                               parent_bg=BG_PANEL, auto_hide=False)
+        self.wave_scrollbar = RoundedScrollbar(
+            wave_wrap,
+            orient="horizontal",
+            command=self.on_wave_scroll,
+            parent_bg=BG_PANEL,
+            auto_hide=False,
+        )
         # Holds the scrollbar's height while it is hidden, so showing it
         # later costs nothing and cannot push the button row out of the
         # window. Same height and padding as the scrollbar itself.
-        self._zoom_spacer = tk.Frame(wave_wrap, bg=BG_PANEL,
-                                      height=RoundedScrollbar.THICKNESS)
+        self._zoom_spacer = tk.Frame(wave_wrap, bg=BG_PANEL, height=RoundedScrollbar.THICKNESS)
         self._zoom_spacer.pack_propagate(False)
         # Packed straight away: the window sizes itself from its contents when
         # it opens, so the space has to be accounted for from the start.
@@ -1007,11 +1274,15 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         # _update_scrollbar_visibility), which places it by hand instead of
         # leaving it to the scrollbar's own fits-in-view auto-hide.
 
-        hint = tk.Label(wave_wrap,
-                         text="Click a sample in \"Browse\", drag the green/red markers, then "
-                              "\u2192 \u2014 adds only the marked region. "
-                              "Without markers the whole file is added.",
-                         anchor="w", justify="left", wraplength=CHOP_MIN_W - 20)
+        hint = tk.Label(
+            wave_wrap,
+            text='Click a sample in "Browse", drag the green/red markers, then '
+            "\u2192 \u2014 adds only the marked region. "
+            "Without markers the whole file is added.",
+            anchor="w",
+            justify="left",
+            wraplength=CHOP_MIN_W - 20,
+        )
         style_label(hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         hint.pack(fill="x", pady=(0, 4))
 
@@ -1023,51 +1294,77 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         style_label(lbl1)
         lbl1.grid(row=0, column=0, sticky="w")
         self.slices_var = tk.IntVar(value=load_default_slices())
-        om1 = RoundedDropdown(opts, self.slices_var, SLICE_COUNTS, parent_bg=BG_DARK, width=70,
-                               command=lambda _v: self.on_options_changed())
+        om1 = RoundedDropdown(
+            opts,
+            self.slices_var,
+            SLICE_COUNTS,
+            parent_bg=BG_DARK,
+            width=70,
+            command=lambda _v: self.on_options_changed(),
+        )
         om1.grid(row=0, column=1, padx=6)
-        add_tooltip(om1,
-                    "How many equal slices the multisample is divided into. Each selected "
-                    "sample fills one slice; unused slices stay silent. Fewer slices = "
-                    "more time per slice.")
+        add_tooltip(
+            om1,
+            "How many equal slices the multisample is divided into. Each selected "
+            "sample fills one slice; unused slices stay silent. Fewer slices = "
+            "more time per slice.",
+        )
 
         lbl2 = tk.Label(opts, text="Sample Rate:")
         style_label(lbl2)
         lbl2.grid(row=0, column=2, sticky="w", padx=(16, 0))
         self.rate_var = tk.IntVar(value=44100)
-        om2 = RoundedDropdown(opts, self.rate_var, TARGET_RATES, parent_bg=BG_DARK, width=90,
-                               command=lambda _v: self.on_options_changed())
+        om2 = RoundedDropdown(
+            opts,
+            self.rate_var,
+            TARGET_RATES,
+            parent_bg=BG_DARK,
+            width=90,
+            command=lambda _v: self.on_options_changed(),
+        )
         om2.grid(row=0, column=3, padx=6)
-        add_tooltip(om2,
-                    "Sample rate of the finished multisample. A lower rate means less "
-                    "memory and a longer possible slice time, at the cost of high "
-                    "frequencies.")
+        add_tooltip(
+            om2,
+            "Sample rate of the finished multisample. A lower rate means less "
+            "memory and a longer possible slice time, at the cost of high "
+            "frequencies.",
+        )
 
         self.stereo_var = tk.BooleanVar(value=False)
-        self.stereo_cb = tk.Checkbutton(opts, text="Stereo", variable=self.stereo_var,
-                                         command=self.on_options_changed)
+        self.stereo_cb = tk.Checkbutton(
+            opts, text="Stereo", variable=self.stereo_var, command=self.on_options_changed
+        )
         style_checkbutton(self.stereo_cb)
         self.stereo_cb.grid(row=0, column=4, padx=(16, 0))
-        add_tooltip(self.stereo_cb,
-                    "Builds the multisample in stereo. Mono halves the size and doubles "
-                    "the possible slice time. Locks itself as soon as the list on the "
-                    "right is not empty, so mono and stereo entries can't get mixed - "
-                    "clear the selection to change it.")
+        add_tooltip(
+            self.stereo_cb,
+            "Builds the multisample in stereo. Mono halves the size and doubles "
+            "the possible slice time. Locks itself as soon as the list on the "
+            "right is not empty, so mono and stereo entries can't get mixed - "
+            "clear the selection to change it.",
+        )
 
         norm_lbl = tk.Label(opts, text="Normalize:")
         style_label(norm_lbl)
         norm_lbl.grid(row=0, column=5, sticky="w", padx=(16, 0))
         self.normalize_mode_var = tk.StringVar(value=NORMALIZE_MODES[0])
-        norm_dd = RoundedDropdown(opts, self.normalize_mode_var, NORMALIZE_MODES,
-                                   parent_bg=BG_DARK, width=110,
-                                   command=lambda _v: self._on_normalize_mode_changed())
+        norm_dd = RoundedDropdown(
+            opts,
+            self.normalize_mode_var,
+            NORMALIZE_MODES,
+            parent_bg=BG_DARK,
+            width=110,
+            command=lambda _v: self._on_normalize_mode_changed(),
+        )
         norm_dd.grid(row=0, column=6, padx=6)
-        add_tooltip(norm_dd,
-                    "Off: levels stay as they are.\n"
-                    "Per sample: every slice is lifted to full level on its own - use "
-                    "this when the samples were recorded at different volumes.\n"
-                    "Whole file: only the finished multisample is lifted, the balance "
-                    "between the slices stays as it is.")
+        add_tooltip(
+            norm_dd,
+            "Off: levels stay as they are.\n"
+            "Per sample: every slice is lifted to full level on its own - use "
+            "this when the samples were recorded at different volumes.\n"
+            "Whole file: only the finished multisample is lifted, the balance "
+            "between the slices stays as it is.",
+        )
 
         self.limits_label = tk.Label(self, text="", anchor="w")
         style_label(self.limits_label, fg=FG_MUTED, font=(UI_FAMILY, 8, "bold"))
@@ -1079,17 +1376,39 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
 
         btn_row = tk.Frame(self, padx=10, pady=10, bg=BG_DARK)
         btn_row.pack(fill="x")
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self.on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK)
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self.on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+        )
         cancel_btn.pack(side="right", padx=4)
-        build_btn = RoundedButton(btn_row, text="Build Multisample", command=self.on_build,
-                                   bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=150)
+        build_btn = RoundedButton(
+            btn_row,
+            text="Build Multisample",
+            command=self.on_build,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=150,
+        )
         build_btn.pack(side="right", padx=4)
-        add_tooltip(build_btn,
-                    "Renders the chop order into a single WAV and loads it onto the pad "
-                    "you started from. Samples longer than the slice time are truncated.")
-        clear_btn = RoundedButton(btn_row, text="Clear Selection", command=self.clear_selection,
-                                   bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=130)
+        add_tooltip(
+            build_btn,
+            "Renders the chop order into a single WAV and loads it onto the pad "
+            "you started from. Samples longer than the slice time are truncated.",
+        )
+        clear_btn = RoundedButton(
+            btn_row,
+            text="Clear Selection",
+            command=self.clear_selection,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=130,
+        )
         clear_btn.pack(side="left", padx=4)
         add_tooltip(clear_btn, "Empties the chop order on the right. Files are not deleted.")
 
@@ -1124,7 +1443,7 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         """Space plays the current sample - except while typing in a text
         field (address bar, preset name entry etc.), where it should just
         type a space."""
-        if isinstance(self.focus_get(), (tk.Entry,)):
+        if isinstance(self.focus_get(), tk.Entry):
             return
         self.preview_current()
         return "break"
@@ -1158,6 +1477,7 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             if self._sort_column == col:
                 return base + (" \u25bc" if self._sort_reverse else " \u25b2")
             return base
+
         self.listbox.heading("#0", text=label("Name", "name"))
         self.listbox.heading("length", text=label("Length", "length"))
         self.listbox.heading("size", text=label("Size", "size"))
@@ -1202,8 +1522,13 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         for entry, duration, size in files:
             idx = len(self._entries)
             self._entries.append(entry)
-            self.listbox.insert("", tk.END, iid=str(idx), text=entry,
-                                 values=(format_duration(duration), format_size(size)))
+            self.listbox.insert(
+                "",
+                tk.END,
+                iid=str(idx),
+                text=entry,
+                values=(format_duration(duration), format_size(size)),
+            )
         self._update_sort_headers()
 
     def _entry_at(self, index):
@@ -1265,7 +1590,7 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             ch_label = "Stereo" if channels == 2 else "Mono"
             self.limits_label.config(
                 text=f"Max total: {limit:.2f}s @ {rate}Hz/{ch_label}   \u2022   "
-                     f"Max per slice ({num_slices} slices): {per_slice:.2f}s"
+                f"Max per slice ({num_slices} slices): {per_slice:.2f}s"
             )
         else:
             self.limits_label.config(text="")
@@ -1288,12 +1613,18 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             except OSError:
                 size = None
             too_long = bool(slice_limit and duration and duration > slice_limit)
-            display_name = (self.selected_display_names[i] if i < len(self.selected_display_names)
-                             else os.path.basename(path))
+            display_name = (
+                self.selected_display_names[i]
+                if i < len(self.selected_display_names)
+                else os.path.basename(path)
+            )
             self.selected_listbox.insert(
-                "", tk.END, iid=str(i),
+                "",
+                tk.END,
+                iid=str(i),
                 values=(i + 1, display_name, format_duration(duration), format_size(size)),
-                tags=("toolong",) if too_long else ())
+                tags=("toolong",) if too_long else (),
+            )
         self.selected_panel.set_title(f"Chop Order: {len(self.selected_files)}")
         self.update_stereo_lock()
 
@@ -1314,8 +1645,9 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             return
         idx = int(sel[0])
         if 0 <= idx < len(self.selected_files):
-            display_name = (self.selected_display_names[idx]
-                             if idx < len(self.selected_display_names) else None)
+            display_name = (
+                self.selected_display_names[idx] if idx < len(self.selected_display_names) else None
+            )
             self.load_waveform(self.selected_files[idx], mode="selected", display_name=display_name)
             if self.autoplay_var.get():
                 self.preview_current()
@@ -1325,10 +1657,14 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         if not sel or sel[0] == 0:
             return
         for i in sel:
-            self.selected_files[i - 1], self.selected_files[i] = \
-                self.selected_files[i], self.selected_files[i - 1]
-            self.selected_display_names[i - 1], self.selected_display_names[i] = \
-                self.selected_display_names[i], self.selected_display_names[i - 1]
+            self.selected_files[i - 1], self.selected_files[i] = (
+                self.selected_files[i],
+                self.selected_files[i - 1],
+            )
+            self.selected_display_names[i - 1], self.selected_display_names[i] = (
+                self.selected_display_names[i],
+                self.selected_display_names[i - 1],
+            )
         self.refresh_selected_list()
         self.selected_listbox.selection_set([str(i - 1) for i in sel])
         self.selected_listbox.see(str(sel[0] - 1))
@@ -1338,10 +1674,14 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         if not sel or sel[0] == len(self.selected_files) - 1:
             return
         for i in sel:
-            self.selected_files[i + 1], self.selected_files[i] = \
-                self.selected_files[i], self.selected_files[i + 1]
-            self.selected_display_names[i + 1], self.selected_display_names[i] = \
-                self.selected_display_names[i], self.selected_display_names[i + 1]
+            self.selected_files[i + 1], self.selected_files[i] = (
+                self.selected_files[i],
+                self.selected_files[i + 1],
+            )
+            self.selected_display_names[i + 1], self.selected_display_names[i] = (
+                self.selected_display_names[i],
+                self.selected_display_names[i + 1],
+            )
         self.refresh_selected_list()
         self.selected_listbox.selection_set([str(i + 1) for i in sel])
         self.selected_listbox.see(str(sel[0] + 1))
@@ -1374,11 +1714,17 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         single_full_path = os.path.join(self.current_dir, entries[0]) if len(entries) == 1 else None
         region_marked = not (self.trim_start_frac <= 0.001 and self.trim_end_frac >= 0.999)
 
-        if len(entries) == 1 and single_full_path == self.browse_source_path and region_marked \
-                and self.current_audio_path:
+        if (
+            len(entries) == 1
+            and single_full_path == self.browse_source_path
+            and region_marked
+            and self.current_audio_path
+        ):
             # Single file with a marked region -> add just that trimmed clip.
             try:
-                trimmed_path = trim_wav_file(self.current_audio_path, self.trim_start_frac, self.trim_end_frac)
+                trimmed_path = trim_wav_file(
+                    self.current_audio_path, self.trim_start_frac, self.trim_end_frac
+                )
                 if not self.stereo_var.get():
                     trimmed_path = ensure_mono_wav(trimmed_path)
                 self.selected_files.append(trimmed_path)
@@ -1437,15 +1783,20 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
                 self.current_audio_path = None
                 self._wave_data = None
                 self.wave_canvas.delete("all")
-                self.wave_canvas.create_text(self.wave_width // 2, self.wave_height // 2,
-                                              text="(No preview)", fill=FG_MUTED)
+                self.wave_canvas.create_text(
+                    self.wave_width // 2, self.wave_height // 2, text="(No preview)", fill=FG_MUTED
+                )
                 return
         elif not PYDUB_AVAILABLE and path.lower().endswith(".mp3"):
             self.current_audio_path = None
             self._wave_data = None
             self.wave_canvas.delete("all")
-            self.wave_canvas.create_text(self.wave_width // 2, self.wave_height // 2,
-                                          text="(No preview - pydub missing)", fill=FG_MUTED)
+            self.wave_canvas.create_text(
+                self.wave_width // 2,
+                self.wave_height // 2,
+                text="(No preview - pydub missing)",
+                fill=FG_MUTED,
+            )
             return
 
         self.current_audio_path = wav_path
@@ -1535,26 +1886,50 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
 
         self.wave_canvas.delete("all")
         if self._wave_data is None:
-            self.wave_canvas.create_text(self.wave_width // 2, self.wave_height // 2,
-                                          text="(No preview)", fill=FG_MUTED)
+            self.wave_canvas.create_text(
+                self.wave_width // 2, self.wave_height // 2, text="(No preview)", fill=FG_MUTED
+            )
             return
 
         end_frac = self.view_start_frac + self.view_span_frac
         if self._wave_data_stereo is not None:
             display_stereo = self._display_data_with_edits(self._wave_data_stereo)
             half_h = self.wave_height / 2.0
-            draw_waveform_on_canvas(self.wave_canvas, display_stereo[:, 0],
-                                     self.view_start_frac, end_frac, self.wave_width, half_h,
-                                     tag="waveform", y_offset=0, clear=True)
-            draw_waveform_on_canvas(self.wave_canvas, display_stereo[:, 1],
-                                     self.view_start_frac, end_frac, self.wave_width, half_h,
-                                     tag="waveform", y_offset=half_h, clear=False)
-            self.wave_canvas.create_line(0, half_h, self.wave_width, half_h,
-                                          fill=BORDER_COLOR, width=1, tags="waveform")
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_stereo[:, 0],
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                half_h,
+                tag="waveform",
+                y_offset=0,
+                clear=True,
+            )
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_stereo[:, 1],
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                half_h,
+                tag="waveform",
+                y_offset=half_h,
+                clear=False,
+            )
+            self.wave_canvas.create_line(
+                0, half_h, self.wave_width, half_h, fill=BORDER_COLOR, width=1, tags="waveform"
+            )
         else:
             display_mono = self._display_data_with_edits(self._wave_data)
-            draw_waveform_on_canvas(self.wave_canvas, display_mono, self.view_start_frac,
-                                     end_frac, self.wave_width, self.wave_height)
+            draw_waveform_on_canvas(
+                self.wave_canvas,
+                display_mono,
+                self.view_start_frac,
+                end_frac,
+                self.wave_width,
+                self.wave_height,
+            )
         self.redraw_markers()
 
     def _update_scrollbar_visibility(self):
@@ -1624,21 +1999,36 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
 
         if self.wave_mode == "browse":
             if x_start > 0:
-                self.wave_canvas.create_rectangle(0, 0, x_start, self.wave_height,
-                                                   fill=BG_DARK, stipple="gray50", outline="",
-                                                   tags="marker")
+                self.wave_canvas.create_rectangle(
+                    0,
+                    0,
+                    x_start,
+                    self.wave_height,
+                    fill=BG_DARK,
+                    stipple="gray50",
+                    outline="",
+                    tags="marker",
+                )
             if x_end < self.wave_width:
-                self.wave_canvas.create_rectangle(x_end, 0, self.wave_width, self.wave_height,
-                                                   fill=BG_DARK, stipple="gray50", outline="",
-                                                   tags="marker")
+                self.wave_canvas.create_rectangle(
+                    x_end,
+                    0,
+                    self.wave_width,
+                    self.wave_height,
+                    fill=BG_DARK,
+                    stipple="gray50",
+                    outline="",
+                    tags="marker",
+                )
 
             # Part of the *marked* region that would still get truncated at build time.
             if slice_limit and self.play_duration > 0:
                 region_duration = self.play_duration * (self.trim_end_frac - self.trim_start_frac)
                 if region_duration > slice_limit > 0:
                     cutoff_within_region = slice_limit / region_duration
-                    cut_frac = (self.trim_start_frac + cutoff_within_region *
-                                (self.trim_end_frac - self.trim_start_frac))
+                    cut_frac = self.trim_start_frac + cutoff_within_region * (
+                        self.trim_end_frac - self.trim_start_frac
+                    )
                     self._draw_truncate_overlay(self.frac_to_x(cut_frac), x_end)
 
             draw_bracket_marker(self.wave_canvas, x_start, self.wave_height, ACCENT_GREEN, "start")
@@ -1720,15 +2110,21 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             return
         elapsed = time.time() - self.play_start_time
         override = getattr(self, "_audible_seconds", None)
-        region_duration = (override if override
-                           else self.play_duration
-                           * (self.trim_end_frac - self.trim_start_frac))
+        region_duration = (
+            override
+            if override
+            else self.play_duration * (self.trim_end_frac - self.trim_start_frac)
+        )
         frac_in_region = min(elapsed / region_duration, 1.0) if region_duration > 0 else 1.0
-        abs_frac = self.trim_start_frac + frac_in_region * (self.trim_end_frac - self.trim_start_frac)
+        abs_frac = self.trim_start_frac + frac_in_region * (
+            self.trim_end_frac - self.trim_start_frac
+        )
         x = self.frac_to_x(abs_frac)
         self.wave_canvas.delete("playhead")
         if 0 <= x <= self.wave_width:
-            self.wave_canvas.create_line(x, 0, x, self.wave_height, fill=ACCENT_BLUE, width=2, tags="playhead")
+            self.wave_canvas.create_line(
+                x, 0, x, self.wave_height, fill=ACCENT_BLUE, width=2, tags="playhead"
+            )
         if frac_in_region < 1.0:
             self.after(30, self.update_playhead)
         else:
@@ -1810,7 +2206,9 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
 
     def on_build(self):
         if not PYDUB_AVAILABLE:
-            dark_showerror("pydub missing", "The Chop feature requires pydub + ffmpeg.", parent=self)
+            dark_showerror(
+                "pydub missing", "The Chop feature requires pydub + ffmpeg.", parent=self
+            )
             return
         if not self.selected_files:
             dark_showwarning("No Files", "Please add at least one sample first.", parent=self)
@@ -1825,7 +2223,7 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
                 "Too Many Files",
                 f"You selected {len(self.selected_files)} files but only {num_slices} slices "
                 f"fit in one output file. Only the first {num_slices} will be used. Continue?",
-                parent=self
+                parent=self,
             )
             if not proceed:
                 return
@@ -1841,8 +2239,9 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             pass
 
         try:
-            combined = build_chop_file(files_to_use, rate, channels, num_slices,
-                                        normalize_mode=self._normalize_mode())
+            combined = build_chop_file(
+                files_to_use, rate, channels, num_slices, normalize_mode=self._normalize_mode()
+            )
 
             unique_id = uuid.uuid4().hex[:8]
             out_name = f"chop_{num_slices}slices_{rate}Hz_{'stereo' if channels == 2 else 'mono'}_{unique_id}.wav"
@@ -1850,11 +2249,10 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             combined.export(out_path, format="wav")
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             dark_showerror(
-                "Chop Error",
-                f"An error occurred while building the chop sample:\n{e}",
-                parent=self
+                "Chop Error", f"An error occurred while building the chop sample:\n{e}", parent=self
             )
             return
         finally:
@@ -1869,12 +2267,14 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         self.attributes("-topmost", True)
         padded_note = ""
         if len(files_to_use) < num_slices:
-            padded_note = f" ({num_slices - len(files_to_use)} remaining slice(s) filled with silence)"
+            padded_note = (
+                f" ({num_slices - len(files_to_use)} remaining slice(s) filled with silence)"
+            )
         dark_showinfo(
             "Chop Complete",
             f"Multisample created from {len(files_to_use)} file(s), "
             f"{num_slices} slices at {rate}Hz.{padded_note}",
-            parent=self
+            parent=self,
         )
         self.attributes("-topmost", False)
         self.destroy()

@@ -6,17 +6,23 @@ is off by default so normal runs don't print diagnostics or pay for the
 per-draw timing calls. Enable with:  PYP6_DEBUG=1 python3 -m pyp6
 """
 
-import time as _time
 import os as _os
+import subprocess
+import sys
+import time as _time
+import tkinter as tk
 
 _t_start = _time.perf_counter()
 
 DEBUG_STARTUP = bool(_os.environ.get("PYP6_DEBUG"))
 
 _PERF = {
-    "panel_redraws": 0, "panel_redraw_time": 0.0,
-    "button_draws": 0, "button_draw_time": 0.0,
-    "dropdown_draws": 0, "dropdown_draw_time": 0.0,
+    "panel_redraws": 0,
+    "panel_redraw_time": 0.0,
+    "button_draws": 0,
+    "button_draw_time": 0.0,
+    "dropdown_draws": 0,
+    "dropdown_draw_time": 0.0,
 }
 
 
@@ -29,32 +35,29 @@ def _log_perf_counters():
     if not DEBUG_STARTUP:
         return
     print("[startup] --- drawing breakdown ---")
-    print(f"[startup]   RoundedPanel._redraw : {_PERF['panel_redraws']:5d} calls, "
-          f"{_PERF['panel_redraw_time']:6.3f}s total")
-    print(f"[startup]   RoundedButton._draw  : {_PERF['button_draws']:5d} calls, "
-          f"{_PERF['button_draw_time']:6.3f}s total")
-    print(f"[startup]   RoundedDropdown._draw: {_PERF['dropdown_draws']:5d} calls, "
-          f"{_PERF['dropdown_draw_time']:6.3f}s total")
+    print(
+        f"[startup]   RoundedPanel._redraw : {_PERF['panel_redraws']:5d} calls, "
+        f"{_PERF['panel_redraw_time']:6.3f}s total"
+    )
+    print(
+        f"[startup]   RoundedButton._draw  : {_PERF['button_draws']:5d} calls, "
+        f"{_PERF['button_draw_time']:6.3f}s total"
+    )
+    print(
+        f"[startup]   RoundedDropdown._draw: {_PERF['dropdown_draws']:5d} calls, "
+        f"{_PERF['dropdown_draw_time']:6.3f}s total"
+    )
 
 
-import os
-import sys
-import subprocess
-_log_timing("stdlib imports (batch 1)")
+def _patch_windows_subprocess():
+    """Suppress console pop-ups spawned by subprocess on PyInstaller --windowed builds.
 
-if sys.platform.startswith("win"):
-    # Every subprocess call (our own ffprobe lookups, and pydub's internal
-    # ffmpeg calls for anything beyond plain WAV) launches a console
-    # sub-process. A normal python.exe run has a console to attach to, so
-    # this is invisible - but a PyInstaller --windowed/--noconsole build has
-    # none, and Windows then briefly pops up a NEW console window for each
-    # one before it closes. With MP3 folders that's one flash per file (the
-    # "Haufen von Fenstern" behavior), and in some cases the console
-    # allocation itself can make the child process fail to run correctly at
-    # all, which lines up with MP3s not playing/showing a waveform. Patching
-    # subprocess.Popen once, globally, fixes this for every caller
-    # (including inside pydub, which we don't otherwise control) without
-    # having to fix each individual call site.
+    Every subprocess call (our own ffprobe lookups, and pydub's internal ffmpeg
+    calls) would otherwise briefly flash a console window on Windows --windowed
+    builds. Patching Popen once fixes every caller including inside pydub.
+    """
+    if not sys.platform.startswith("win"):
+        return
     _original_popen_init = subprocess.Popen.__init__
 
     def _no_console_popen_init(self, *args, **kwargs):
@@ -63,8 +66,9 @@ if sys.platform.startswith("win"):
 
     subprocess.Popen.__init__ = _no_console_popen_init
 
-import tkinter as tk
-_log_timing("tkinter imported")
+
+_patch_windows_subprocess()
+_log_timing("stdlib init done")
 
 # Optional: enables dragging sample files from the OS file manager
 # straight onto a pad. Not a hard requirement - without it the app runs
@@ -75,6 +79,7 @@ _log_timing("tkinter imported")
 #   pyinstaller --collect-data tkinterdnd2 ...
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
+
     DND_AVAILABLE = True
     DND_IMPORT_ERROR = None
 except ImportError as e:
@@ -86,8 +91,10 @@ except ImportError as e:
     DND_IMPORT_ERROR = str(e)
     DND_FILES = None
     TkinterDnD = None
-_log_timing("tkinterdnd2 import attempted"
-            + ("" if DND_AVAILABLE else f" - NOT AVAILABLE: {DND_IMPORT_ERROR}"))
+_log_timing(
+    "tkinterdnd2 import attempted"
+    + ("" if DND_AVAILABLE else f" - NOT AVAILABLE: {DND_IMPORT_ERROR}")
+)
 
 # The logo, embedded so the app needs no companion file - a lone .png next
 # to the script goes missing the moment someone moves just the .py, and the
@@ -131,14 +138,24 @@ def _verify_ui_font(root):
     search on every distinct size/weight combination, which on X11 is slow
     enough to visibly delay window construction."""
     from pyp6.constants import UI_FAMILY
+
     try:
         import tkinter.font as tkfont
+
         available = set(tkfont.families(root))
         if UI_FAMILY not in available:
-            print(f"[startup] WARNING: UI font '{UI_FAMILY}' is not installed - "
-                  f"falling back (this can noticeably slow down window drawing).")
-            for candidate in ("DejaVu Sans", "Liberation Sans", "Noto Sans",
-                              "FreeSans", "Helvetica", "Arial"):
+            print(
+                f"[startup] WARNING: UI font '{UI_FAMILY}' is not installed - "
+                f"falling back (this can noticeably slow down window drawing)."
+            )
+            for candidate in (
+                "DejaVu Sans",
+                "Liberation Sans",
+                "Noto Sans",
+                "FreeSans",
+                "Helvetica",
+                "Arial",
+            ):
                 if candidate in available:
                     print(f"[startup] Suggestion: '{candidate}' is available on this system.")
                     break
@@ -150,9 +167,10 @@ def check_startup_dependencies(root):
     """One clear, consolidated notice at launch instead of the user only
     finding out piecemeal via different error messages the first time each
     affected feature is touched."""
-    from pyp6.audio.playback import PYDUB_AVAILABLE, FFMPEG_AVAILABLE
     import pyp6.audio.playback as _pb
+    from pyp6.audio.playback import FFMPEG_AVAILABLE, PYDUB_AVAILABLE
     from pyp6.ui.dialogs_common import dark_showwarning
+
     if not PYDUB_AVAILABLE:
         dark_showwarning(
             "pydub not found",
@@ -163,7 +181,7 @@ def check_startup_dependencies(root):
             "- MP3 files (loading, previewing, length display)\n\n"
             "WAV files can still be loaded and exported unchanged.\n"
             "Install with: pip install pydub",
-            parent=root
+            parent=root,
         )
         _pb._pydub_warning_shown = True  # already told them - don't nag again per-feature
     elif not FFMPEG_AVAILABLE:
@@ -177,7 +195,7 @@ def check_startup_dependencies(root):
             "WAV files including rate/pitch/mono conversion and Chop usually still "
             "work, since those don't require ffmpeg.\n"
             "Install with e.g.: apt install ffmpeg / brew install ffmpeg",
-            parent=root
+            parent=root,
         )
 
 
@@ -185,16 +203,19 @@ def main():
     _log_timing("module fully loaded (all imports + class/function defs)")
 
     import pyp6.config as _cfg
+
     _cfg.LAST_SAMPLE_DIR = _cfg.load_last_sample_dir()
     _cfg.apply_saved_ffmpeg_overrides()
     _cfg.apply_saved_storage_threshold()
 
     # Wire performance counters into widget module so draws are tracked.
     from pyp6.ui import widgets as _widgets
+
     _widgets._PERF = _PERF
 
     # Wire module-level variables into model.app before constructing the app.
     import pyp6.model.app as _app_mod
+
     _app_mod.DEBUG_STARTUP = DEBUG_STARTUP
     _app_mod._log_timing = _log_timing
     _app_mod.DND_AVAILABLE = DND_AVAILABLE
@@ -203,6 +224,7 @@ def main():
 
     # Wire DND state into the about helpers bridge.
     import pyp6._about_helpers as _ah
+
     _ah.DND_AVAILABLE = DND_AVAILABLE
     _ah.DND_IMPORT_ERROR = DND_IMPORT_ERROR
 
@@ -222,10 +244,12 @@ def main():
     _log_timing("dependency check done")
 
     from pyp6.model.app import P6ManagerApp
-    app = P6ManagerApp(root)
+
+    P6ManagerApp(root)
     _log_timing("P6ManagerApp constructed (full UI built)")
 
     if DEBUG_STARTUP:
+
         def _count_widgets(w):
             n = 1
             for child in w.winfo_children():
@@ -238,8 +262,10 @@ def main():
                 n += _count_canvases(child)
             return n
 
-        print(f"[startup]   widget tree: {_count_widgets(root)} widgets total, "
-              f"{_count_canvases(root)} of them Canvas")
+        print(
+            f"[startup]   widget tree: {_count_widgets(root)} widgets total, "
+            f"{_count_canvases(root)} of them Canvas"
+        )
     root.update_idletasks()
     _log_timing("root.update_idletasks() done (geometry/layout settled)")
     _log_perf_counters()

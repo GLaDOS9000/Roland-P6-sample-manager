@@ -3,31 +3,55 @@
 import os
 import tkinter as tk
 
-from pyp6.constants import (
-    APP_NAME, APP_SUBTITLE, APP_VERSION, APP_URL,
-    UI_FAMILY, SLICE_COUNTS, TEMP_DIR,
-)
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_ORANGE,
-    BORDER_COLOR, BORDER_LIGHT,
-    THEME, BTN_BLUE, BTN_GREEN, BTN_ORANGE, BTN_PURPLE,
+    ACCENT_BLUE,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BORDER_LIGHT,
+    BTN_BLUE,
+    BTN_GREEN,
+    BTN_ORANGE,
+    BTN_PURPLE,
+    FG_MUTED,
+    FG_TEXT,
+    THEME,
 )
+from pyp6.audio.playback import PYDUB_AVAILABLE
 from pyp6.config import (
-    save_config_value,
-    load_default_autoplay, load_default_slices,
-    load_storage_warning_mb, load_ffmpeg_override, load_ffprobe_override,
-    get_temp_folder_size, clear_temp_folder,
     apply_saved_storage_threshold,
+    clear_temp_folder,
+    get_temp_folder_size,
+    load_default_autoplay,
+    load_default_slices,
+    load_ffmpeg_override,
+    load_ffprobe_override,
+    load_storage_warning_mb,
+    save_config_value,
 )
-from pyp6.audio.playback import PYDUB_AVAILABLE, FFMPEG_AVAILABLE
-from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel
+from pyp6.constants import (
+    APP_NAME,
+    APP_SUBTITLE,
+    APP_URL,
+    APP_VERSION,
+    SLICE_COUNTS,
+    TEMP_DIR,
+    UI_FAMILY,
+)
 from pyp6.ui.dialogs_common import (
-    style_toplevel, style_label, style_checkbutton,
+    TOOLTIPS_ENABLED,
+    add_tooltip,
     center_toplevel_on_parent,
-    dark_showinfo, dark_showerror, dark_askyesno,
-    add_tooltip, set_tooltips_enabled, TOOLTIPS_ENABLED,
+    dark_askyesno,
+    dark_showerror,
+    dark_showinfo,
+    set_tooltips_enabled,
+    style_checkbutton,
+    style_label,
+    style_toplevel,
 )
+from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel
 
 try:
     from pydub import AudioSegment
@@ -65,10 +89,16 @@ class AboutDialog(tk.Toplevel):
         version_label.pack(fill="x", pady=(2, 10))
 
         desc_label = tk.Label(
-            outer, anchor="w", justify="left", wraplength=500,
-            text=("Manages samples for the Roland AIRA P-6: load, trim, chop and "
-                  "normalize audio, then write complete banks to the device's "
-                  "IMPORT folder."))
+            outer,
+            anchor="w",
+            justify="left",
+            wraplength=500,
+            text=(
+                "Manages samples for the Roland AIRA P-6: load, trim, chop and "
+                "normalize audio, then write complete banks to the device's "
+                "IMPORT folder."
+            ),
+        )
         style_label(desc_label, fg=FG_TEXT, font=(UI_FAMILY, 9))
         desc_label.pack(fill="x", pady=(0, 12))
 
@@ -76,20 +106,36 @@ class AboutDialog(tk.Toplevel):
         # webbrowser plus a working desktop handler, and a silently failing
         # click is worse than text you can select and copy. "Copy Info"
         # includes it too.
-        link_label = tk.Entry(outer, bd=0, highlightthickness=0, readonlybackground=BG_DARK,
-                               fg=ACCENT_BLUE, font=(UI_FAMILY, 9), cursor="xterm",
-                               selectbackground=ACCENT_BLUE, selectforeground="#FFFFFF")
+        link_label = tk.Entry(
+            outer,
+            bd=0,
+            highlightthickness=0,
+            readonlybackground=BG_DARK,
+            fg=ACCENT_BLUE,
+            font=(UI_FAMILY, 9),
+            cursor="xterm",
+            selectbackground=ACCENT_BLUE,
+            selectforeground="#FFFFFF",
+        )
         link_label.insert(0, APP_URL)
         link_label.config(state="readonly")  # selectable and copyable, but not editable
         link_label.pack(fill="x", pady=(0, 12))
-        add_tooltip(link_label,
-                    "Project page with the latest version, source code and issue "
-                    "tracker. Select the text to copy it, or use \u201cCopy Info\u201d "
-                    "for everything at once.")
+        add_tooltip(
+            link_label,
+            "Project page with the latest version, source code and issue "
+            "tracker. Select the text to copy it, or use \u201cCopy Info\u201d "
+            "for everything at once.",
+        )
 
-        info_panel = RoundedPanel(outer, title="Details", parent_bg=BG_DARK,
-                                   panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                   title_fg=ACCENT_BLUE)
+        info_panel = RoundedPanel(
+            outer,
+            title="Details",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         info_panel.pack(fill="both", expand=True)
         # A Text widget rather than a grid of Labels: Tk labels can't be
         # selected, so the version numbers and paths here - exactly the
@@ -97,15 +143,25 @@ class AboutDialog(tk.Toplevel):
         # out individually. "Copy Info" copies everything at once; this
         # allows grabbing a single line.
         self.info_text = tk.Text(
-            info_panel.body, bg=BG_PANEL, fg=FG_TEXT, font=(UI_FAMILY, 8),
-            bd=0, highlightthickness=0, wrap="word", height=14,
-            insertwidth=0, cursor="xterm",
-            selectbackground=ACCENT_BLUE, selectforeground="#FFFFFF")
+            info_panel.body,
+            bg=BG_PANEL,
+            fg=FG_TEXT,
+            font=(UI_FAMILY, 8),
+            bd=0,
+            highlightthickness=0,
+            wrap="word",
+            height=14,
+            insertwidth=0,
+            cursor="xterm",
+            selectbackground=ACCENT_BLUE,
+            selectforeground="#FFFFFF",
+        )
         self.info_text.pack(fill="both", expand=True, pady=(6, 4))
         self.info_text.tag_configure("key", foreground=FG_MUTED)
         # Lazy import: collect_about_info lives in __main__ and is registered
         # at startup so the about dialog does not hard-depend on __main__.
-        from pyp6._about_helpers import collect_about_info, about_info_as_text
+        from pyp6._about_helpers import about_info_as_text, collect_about_info
+
         self._about_info_as_text = about_info_as_text
         for label, value in collect_about_info():
             self.info_text.insert("end", f"{label}: ", "key")
@@ -116,24 +172,46 @@ class AboutDialog(tk.Toplevel):
         # Not legal advice, just plain honesty: this is an independent tool
         # and users shouldn't be left thinking Roland published it.
         disclaimer = tk.Label(
-            outer, anchor="w", justify="left", wraplength=500,
-            text=("Roland, AIRA and P-6 are trademarks of Roland Corporation. "
-                  "This is an independent project and is not affiliated with, "
-                  "endorsed by or supported by Roland."))
+            outer,
+            anchor="w",
+            justify="left",
+            wraplength=500,
+            text=(
+                "Roland, AIRA and P-6 are trademarks of Roland Corporation. "
+                "This is an independent project and is not affiliated with, "
+                "endorsed by or supported by Roland."
+            ),
+        )
         style_label(disclaimer, fg=FG_MUTED, font=(UI_FAMILY, 8))
         disclaimer.pack(fill="x", pady=(12, 0))
 
         btn_row = tk.Frame(outer, bg=BG_DARK)
         btn_row.pack(fill="x", pady=(12, 0))
-        close_btn = RoundedButton(btn_row, text="Close", command=self.destroy,
-                                   bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=90)
+        close_btn = RoundedButton(
+            btn_row,
+            text="Close",
+            command=self.destroy,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
         close_btn.pack(side="right", padx=4)
-        self.copy_btn = RoundedButton(btn_row, text="Copy Info", command=self._copy_info,
-                                       bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK, width=110)
+        self.copy_btn = RoundedButton(
+            btn_row,
+            text="Copy Info",
+            command=self._copy_info,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=110,
+        )
         self.copy_btn.pack(side="right", padx=4)
-        add_tooltip(self.copy_btn,
-                    "Copies version, component and path details to the clipboard - "
-                    "handy to paste into a bug report.")
+        add_tooltip(
+            self.copy_btn,
+            "Copies version, component and path details to the clipboard - "
+            "handy to paste into a bug report.",
+        )
 
         self.bind("<Escape>", lambda _e: self.destroy())
         self.transient(parent)
@@ -154,9 +232,20 @@ class AboutDialog(tk.Toplevel):
         def on_key(event):
             if event.state & 0x4 and (event.keysym in allowed):  # Control held
                 return None
-            if event.keysym in ("Left", "Right", "Up", "Down", "Home", "End",
-                                "Prior", "Next", "Shift_L", "Shift_R",
-                                "Control_L", "Control_R"):
+            if event.keysym in (
+                "Left",
+                "Right",
+                "Up",
+                "Down",
+                "Home",
+                "End",
+                "Prior",
+                "Next",
+                "Shift_L",
+                "Shift_R",
+                "Control_L",
+                "Control_R",
+            ):
                 return None
             return "break"
 
@@ -218,27 +307,49 @@ class SettingsDialog(tk.Toplevel):
         outer.pack(fill="both", expand=True)
 
         # ----- IMPORT folder -----
-        import_panel = RoundedPanel(outer, title="IMPORT Folder", parent_bg=BG_DARK,
-                                     panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                     title_fg=ACCENT_BLUE)
+        import_panel = RoundedPanel(
+            outer,
+            title="IMPORT Folder",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         import_panel.pack(fill="x", pady=(0, 12))
         import_row = tk.Frame(import_panel.body, bg=BG_PANEL)
         import_row.pack(fill="x")
-        self.import_path_label = tk.Label(import_row, text=self.app.import_root, anchor="w",
-                                           wraplength=380, justify="left")
+        self.import_path_label = tk.Label(
+            import_row, text=self.app.import_root, anchor="w", wraplength=380, justify="left"
+        )
         style_label(self.import_path_label, bg=BG_PANEL, fg=FG_TEXT, font=(UI_FAMILY, 9))
         self.import_path_label.pack(side="left", fill="x", expand=True)
-        change_folder_btn = RoundedButton(import_row, text="Change...", command=self._change_import_folder,
-                                           bg=BTN_PURPLE, fg="#FFFFFF", parent_bg=BG_PANEL, width=100)
+        change_folder_btn = RoundedButton(
+            import_row,
+            text="Change...",
+            command=self._change_import_folder,
+            bg=BTN_PURPLE,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=100,
+        )
         change_folder_btn.pack(side="right")
-        add_tooltip(change_folder_btn,
-                    "The IMPORT folder on the P-6 drive. \"Banks \u2192 P6\" writes the "
-                    "BANK_x/PAD_n folders in here.")
+        add_tooltip(
+            change_folder_btn,
+            'The IMPORT folder on the P-6 drive. "Banks \u2192 P6" writes the '
+            "BANK_x/PAD_n folders in here.",
+        )
 
         # ----- Appearance -----
-        appearance_panel = RoundedPanel(outer, title="Appearance", parent_bg=BG_DARK,
-                                         panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                         title_fg=ACCENT_BLUE)
+        appearance_panel = RoundedPanel(
+            outer,
+            title="Appearance",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         appearance_panel.pack(fill="x", pady=(0, 12))
 
         theme_row = tk.Frame(appearance_panel.body, bg=BG_PANEL)
@@ -247,51 +358,72 @@ class SettingsDialog(tk.Toplevel):
         style_label(theme_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         theme_lbl.pack(side="left")
         self.theme_var = tk.StringVar(value=THEME)
-        theme_dd = RoundedDropdown(theme_row, self.theme_var,
-                                    ["dark", "tokyo", "dracula", "modern", "latte", "bright"],
-                                    parent_bg=BG_PANEL, width=100, height=26)
+        theme_dd = RoundedDropdown(
+            theme_row,
+            self.theme_var,
+            ["dark", "tokyo", "dracula", "modern", "latte", "bright"],
+            parent_bg=BG_PANEL,
+            width=100,
+            height=26,
+        )
         theme_dd.pack(side="left", padx=6)
         theme_names_hint = tk.Label(
-            theme_row,
-            text="(latte = muted Catppuccin Latte, bright = the original)",
-            anchor="w")
+            theme_row, text="(latte = muted Catppuccin Latte, bright = the original)", anchor="w"
+        )
         style_label(theme_names_hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         theme_names_hint.pack(side="left", padx=(4, 0))
 
-        theme_hint = tk.Label(appearance_panel.body,
-                               text="Requires an app restart to take effect.",
-                               anchor="w")
+        theme_hint = tk.Label(
+            appearance_panel.body, text="Requires an app restart to take effect.", anchor="w"
+        )
         style_label(theme_hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         theme_hint.pack(fill="x", pady=(6, 0))
 
         tooltip_row = tk.Frame(appearance_panel.body, bg=BG_PANEL)
         tooltip_row.pack(fill="x", pady=(10, 0))
         self.tooltips_var = tk.BooleanVar(value=TOOLTIPS_ENABLED)
-        tooltips_cb = tk.Checkbutton(tooltip_row, text="Show tooltips (hover help)",
-                                      variable=self.tooltips_var,
-                                      command=self._on_tooltips_toggled)
+        tooltips_cb = tk.Checkbutton(
+            tooltip_row,
+            text="Show tooltips (hover help)",
+            variable=self.tooltips_var,
+            command=self._on_tooltips_toggled,
+        )
         style_checkbutton(tooltips_cb)
         tooltips_cb.config(bg=BG_PANEL, activebackground=BG_PANEL)
         tooltips_cb.pack(side="left")
         tooltips_hint = tk.Label(tooltip_row, text="(applies immediately)", anchor="w")
         style_label(tooltips_hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         tooltips_hint.pack(side="left", padx=(6, 0))
-        add_tooltip(tooltips_cb,
-                    "Short explanations that appear when you hover over a button or "
-                    "waveform. Turn this off once you know your way around.")
+        add_tooltip(
+            tooltips_cb,
+            "Short explanations that appear when you hover over a button or "
+            "waveform. Turn this off once you know your way around.",
+        )
 
         # ----- Audio components -----
-        comp_panel = RoundedPanel(outer, title="Audio Components (pydub / ffmpeg)", parent_bg=BG_DARK,
-                                   panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                   title_fg=ACCENT_BLUE)
+        comp_panel = RoundedPanel(
+            outer,
+            title="Audio Components (pydub / ffmpeg)",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         comp_panel.pack(fill="x", pady=(0, 12))
 
         # Lazy import: dnd helpers are registered at startup in __main__.
-        from pyp6._about_helpers import dnd_status_text, dnd_is_working
+        from pyp6._about_helpers import dnd_is_working, dnd_status_text
+
         dnd_row = tk.Frame(comp_panel.body, bg=BG_PANEL)
         dnd_row.pack(fill="x", pady=(0, 8))
         dnd_lbl = tk.Label(dnd_row, text=f"Drag & drop onto pads: {dnd_status_text()}", anchor="w")
-        style_label(dnd_lbl, bg=BG_PANEL, fg=(FG_TEXT if dnd_is_working() else FG_MUTED), font=(UI_FAMILY, 9))
+        style_label(
+            dnd_lbl,
+            bg=BG_PANEL,
+            fg=(FG_TEXT if dnd_is_working() else FG_MUTED),
+            font=(UI_FAMILY, 9),
+        )
         dnd_lbl.pack(side="left")
 
         ffmpeg_row = tk.Frame(comp_panel.body, bg=BG_PANEL)
@@ -299,10 +431,22 @@ class SettingsDialog(tk.Toplevel):
         ffmpeg_lbl = tk.Label(ffmpeg_row, text="ffmpeg path:", width=12, anchor="w")
         style_label(ffmpeg_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         ffmpeg_lbl.pack(side="left")
-        self.ffmpeg_entry = tk.Entry(ffmpeg_row, bg=BG_INPUT, fg=FG_TEXT, insertbackground=FG_TEXT,
-                                      relief="flat", highlightthickness=1, highlightbackground=BORDER_COLOR,
-                                      highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 9))
-        current_ffmpeg = load_ffmpeg_override() or getattr(AudioSegment, "converter", "") if PYDUB_AVAILABLE else ""
+        self.ffmpeg_entry = tk.Entry(
+            ffmpeg_row,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 9),
+        )
+        current_ffmpeg = (
+            load_ffmpeg_override() or getattr(AudioSegment, "converter", "")
+            if PYDUB_AVAILABLE
+            else ""
+        )
         self.ffmpeg_entry.insert(0, current_ffmpeg or "")
         self.ffmpeg_entry.pack(side="left", fill="x", expand=True, padx=6)
 
@@ -311,42 +455,68 @@ class SettingsDialog(tk.Toplevel):
         ffprobe_lbl = tk.Label(ffprobe_row, text="ffprobe path:", width=12, anchor="w")
         style_label(ffprobe_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         ffprobe_lbl.pack(side="left")
-        self.ffprobe_entry = tk.Entry(ffprobe_row, bg=BG_INPUT, fg=FG_TEXT, insertbackground=FG_TEXT,
-                                       relief="flat", highlightthickness=1, highlightbackground=BORDER_COLOR,
-                                       highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 9))
-        current_ffprobe = load_ffprobe_override() or getattr(AudioSegment, "ffprobe", "") if PYDUB_AVAILABLE else ""
+        self.ffprobe_entry = tk.Entry(
+            ffprobe_row,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 9),
+        )
+        current_ffprobe = (
+            load_ffprobe_override() or getattr(AudioSegment, "ffprobe", "")
+            if PYDUB_AVAILABLE
+            else ""
+        )
         self.ffprobe_entry.insert(0, current_ffprobe or "")
         self.ffprobe_entry.pack(side="left", fill="x", expand=True, padx=6)
 
-        hint = tk.Label(comp_panel.body,
-                         text="Leave blank for automatic detection. Only fill in if ffmpeg/ffprobe "
-                              "aren't found automatically.",
-                         anchor="w", justify="left", wraplength=560)
+        hint = tk.Label(
+            comp_panel.body,
+            text="Leave blank for automatic detection. Only fill in if ffmpeg/ffprobe "
+            "aren't found automatically.",
+            anchor="w",
+            justify="left",
+            wraplength=560,
+        )
         style_label(hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         hint.pack(fill="x", pady=(6, 0))
 
         # ----- Defaults -----
-        defaults_panel = RoundedPanel(outer, title="Defaults", parent_bg=BG_DARK,
-                                      panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                      title_fg=ACCENT_BLUE)
+        defaults_panel = RoundedPanel(
+            outer,
+            title="Defaults",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         defaults_panel.pack(fill="x", pady=(0, 12))
 
         autoplay_row = tk.Frame(defaults_panel.body, bg=BG_PANEL)
         autoplay_row.pack(fill="x")
         self.default_autoplay_var = tk.BooleanVar(value=load_default_autoplay())
-        autoplay_cb = tk.Checkbutton(autoplay_row,
-                                      text="Autoplay on by default (all preview windows)",
-                                      variable=self.default_autoplay_var)
+        autoplay_cb = tk.Checkbutton(
+            autoplay_row,
+            text="Autoplay on by default (all preview windows)",
+            variable=self.default_autoplay_var,
+        )
         style_checkbutton(autoplay_cb)
         autoplay_cb.config(bg=BG_PANEL, activebackground=BG_PANEL)
         autoplay_cb.pack(side="left")
-        add_tooltip(autoplay_cb,
-                    "Sets how the Autoplay checkbox starts out in the sample "
-                    "selection window, the Chop window and the wavetable builder. "
-                    "In the first two it plays the selected sample; in the "
-                    "wavetable builder it plays the morph sweep of the family you "
-                    "click.\n\nEach window keeps its own switch, so this only "
-                    "decides the starting position.")
+        add_tooltip(
+            autoplay_cb,
+            "Sets how the Autoplay checkbox starts out in the sample "
+            "selection window, the Chop window and the wavetable builder. "
+            "In the first two it plays the selected sample; in the "
+            "wavetable builder it plays the morph sweep of the family you "
+            "click.\n\nEach window keeps its own switch, so this only "
+            "decides the starting position.",
+        )
 
         slices_row = tk.Frame(defaults_panel.body, bg=BG_PANEL)
         slices_row.pack(fill="x", pady=(8, 0))
@@ -354,8 +524,14 @@ class SettingsDialog(tk.Toplevel):
         style_label(slices_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         slices_lbl.pack(side="left")
         self.default_slices_var = tk.IntVar(value=load_default_slices())
-        slices_dd = RoundedDropdown(slices_row, self.default_slices_var, SLICE_COUNTS,
-                                     parent_bg=BG_PANEL, width=70, height=26)
+        slices_dd = RoundedDropdown(
+            slices_row,
+            self.default_slices_var,
+            SLICE_COUNTS,
+            parent_bg=BG_PANEL,
+            width=70,
+            height=26,
+        )
         slices_dd.pack(side="left", padx=6)
 
         storage_row = tk.Frame(defaults_panel.body, bg=BG_PANEL)
@@ -363,41 +539,72 @@ class SettingsDialog(tk.Toplevel):
         storage_lbl = tk.Label(storage_row, text="Storage Warning Threshold (MB):")
         style_label(storage_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
         storage_lbl.pack(side="left")
-        self.storage_mb_entry = tk.Entry(storage_row, width=8, bg=BG_INPUT, fg=FG_TEXT,
-                                          insertbackground=FG_TEXT, relief="flat",
-                                          highlightthickness=1, highlightbackground=BORDER_COLOR,
-                                          highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 9), justify="center")
+        self.storage_mb_entry = tk.Entry(
+            storage_row,
+            width=8,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 9),
+            justify="center",
+        )
         self.storage_mb_entry.insert(0, str(load_storage_warning_mb()))
         self.storage_mb_entry.pack(side="left", padx=6)
-        add_tooltip(self.storage_mb_entry,
-                    "Above this size the storage display turns red (for the current bank "
-                    "and for the total), and copying to the P-6 asks for confirmation "
-                    "for every bank that is over.")
+        add_tooltip(
+            self.storage_mb_entry,
+            "Above this size the storage display turns red (for the current bank "
+            "and for the total), and copying to the P-6 asks for confirmation "
+            "for every bank that is over.",
+        )
 
         # ----- Temporary files -----
-        temp_panel = RoundedPanel(outer, title="Temporary Files", parent_bg=BG_DARK,
-                                   panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                   title_fg=ACCENT_BLUE)
+        temp_panel = RoundedPanel(
+            outer,
+            title="Temporary Files",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         temp_panel.pack(fill="x", pady=(0, 12))
         temp_row = tk.Frame(temp_panel.body, bg=BG_PANEL)
         temp_row.pack(fill="x", pady=(8, 0))
         self.temp_size_label = tk.Label(temp_row, text="", anchor="w")
         style_label(self.temp_size_label, bg=BG_PANEL, font=(UI_FAMILY, 9))
         self.temp_size_label.pack(side="left")
-        clear_temp_btn = RoundedButton(temp_row, text="Clear Now", command=self._clear_temp,
-                                        bg=BTN_ORANGE, fg="#FFFFFF", parent_bg=BG_PANEL,
-                                        width=100, height=26, font=(UI_FAMILY, 8))
+        clear_temp_btn = RoundedButton(
+            temp_row,
+            text="Clear Now",
+            command=self._clear_temp,
+            bg=BTN_ORANGE,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=100,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
         clear_temp_btn.pack(side="right")
-        add_tooltip(clear_temp_btn,
-                    "Deletes all trimmed, normalized and chopped intermediate files. "
-                    "Pads still pointing at one of them are cleared - save a preset "
-                    "first if you want to keep those edits.")
-        temp_hint = tk.Label(temp_panel.body,
-                              text="Trimmed, normalized, mono-converted and chopped samples are stored here. "
-                                   "Saved presets are self-contained (their samples are copied into the "
-                                   "preset folder), so they are unaffected - but pads holding an edited "
-                                   "sample you haven't saved to a preset yet will lose it.",
-                              anchor="w", justify="left", wraplength=560)
+        add_tooltip(
+            clear_temp_btn,
+            "Deletes all trimmed, normalized and chopped intermediate files. "
+            "Pads still pointing at one of them are cleared - save a preset "
+            "first if you want to keep those edits.",
+        )
+        temp_hint = tk.Label(
+            temp_panel.body,
+            text="Trimmed, normalized, mono-converted and chopped samples are stored here. "
+            "Saved presets are self-contained (their samples are copied into the "
+            "preset folder), so they are unaffected - but pads holding an edited "
+            "sample you haven't saved to a preset yet will lose it.",
+            anchor="w",
+            justify="left",
+            wraplength=560,
+        )
         style_label(temp_hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         temp_hint.pack(fill="x", pady=(6, 0))
         self._refresh_temp_size()
@@ -405,18 +612,41 @@ class SettingsDialog(tk.Toplevel):
         # ----- buttons -----
         btn_row = tk.Frame(outer, bg=BG_DARK)
         btn_row.pack(fill="x", pady=(4, 0))
-        close_btn = RoundedButton(btn_row, text="Close", command=self.destroy,
-                                   bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=90)
+        close_btn = RoundedButton(
+            btn_row,
+            text="Close",
+            command=self.destroy,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
         close_btn.pack(side="right", padx=4)
-        save_btn = RoundedButton(btn_row, text="Save", command=self._save,
-                                  bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=90)
+        save_btn = RoundedButton(
+            btn_row,
+            text="Save",
+            command=self._save,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=90,
+        )
         save_btn.pack(side="right", padx=4)
-        about_btn = RoundedButton(btn_row, text="About", command=self._open_about,
-                                   bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=90)
+        about_btn = RoundedButton(
+            btn_row,
+            text="About",
+            command=self._open_about,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
         about_btn.pack(side="left", padx=4)
-        add_tooltip(about_btn,
-                    "Version, author and the state of the optional components "
-                    "(pydub, ffmpeg, drag & drop).")
+        add_tooltip(
+            about_btn,
+            "Version, author and the state of the optional components "
+            "(pydub, ffmpeg, drag & drop).",
+        )
 
         self.transient(parent)
         center_toplevel_on_parent(self, parent)
@@ -475,12 +705,13 @@ class SettingsDialog(tk.Toplevel):
             return
         mb = total / (1024 * 1024)
         if not dark_askyesno(
-                "Clear Temporary Files?",
-                f"Delete {count} file(s) ({mb:.2f} MB) from:\n{TEMP_DIR}\n\n"
-                "Saved presets and your settings are not affected. Pads still holding an "
-                "edited (trimmed/normalized/chopped) sample that hasn't been saved to a "
-                "preset yet will be cleared.\n\nContinue?",
-                parent=self):
+            "Clear Temporary Files?",
+            f"Delete {count} file(s) ({mb:.2f} MB) from:\n{TEMP_DIR}\n\n"
+            "Saved presets and your settings are not affected. Pads still holding an "
+            "edited (trimmed/normalized/chopped) sample that hasn't been saved to a "
+            "preset yet will be cleared.\n\nContinue?",
+            parent=self,
+        ):
             return
         deleted, errors = clear_temp_folder()
         self._refresh_temp_size()
@@ -488,8 +719,11 @@ class SettingsDialog(tk.Toplevel):
         if hasattr(self.app, "clear_pads_referencing_missing_files"):
             cleared_pads = self.app.clear_pads_referencing_missing_files()
         if errors:
-            dark_showerror("Partial Errors",
-                           "Some items could not be deleted:\n" + chr(10).join(errors), parent=self)
+            dark_showerror(
+                "Partial Errors",
+                "Some items could not be deleted:\n" + chr(10).join(errors),
+                parent=self,
+            )
         else:
             msg = f"{deleted} item(s) deleted."
             if cleared_pads:
@@ -526,8 +760,9 @@ class SettingsDialog(tk.Toplevel):
             if mb <= 0:
                 raise ValueError
         except ValueError:
-            dark_showerror("Invalid Value", "The storage warning threshold must be a number > 0.",
-                            parent=self)
+            dark_showerror(
+                "Invalid Value", "The storage warning threshold must be a number > 0.", parent=self
+            )
             return
         save_config_value("storage_warning_mb", mb)
         apply_saved_storage_threshold()
@@ -549,8 +784,9 @@ class SettingsDialog(tk.Toplevel):
             self.app.update_storage_display()
 
         if theme_changed:
-            dark_showinfo("Saved", "Settings saved.\n\nRestart the app to apply the new theme.",
-                           parent=self)
+            dark_showinfo(
+                "Saved", "Settings saved.\n\nRestart the app to apply the new theme.", parent=self
+            )
         else:
             dark_showinfo("Saved", "Settings saved.", parent=self)
         self.destroy()

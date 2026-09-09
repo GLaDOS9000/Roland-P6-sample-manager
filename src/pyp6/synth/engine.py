@@ -6,12 +6,21 @@ import wave
 import numpy as np
 
 from pyp6.constants import (
-    BANKS, PADS, WT_SR, WT_SEGMENTS, WT_MAX_SECONDS, WT_MAX_SEG_FRAMES,
-    WT_PEAK, WT_PREVIEW_SECONDS, NOTE_NAMES, WT_REGISTERS,
-    PRM_DEFAULTS, PRM_TEMPLATES,
+    BANKS,
+    NOTE_NAMES,
+    PADS,
+    PRM_DEFAULTS,
+    PRM_TEMPLATES,
+    WT_MAX_SECONDS,
+    WT_MAX_SEG_FRAMES,
+    WT_PEAK,
+    WT_PREVIEW_SECONDS,
+    WT_SEGMENTS,
+    WT_SR,
 )
 from pyp6.synth.waveforms import (
-    wt_family_entry, wt_selection_names,
+    wt_family_entry,
+    wt_selection_names,
 )
 
 
@@ -57,12 +66,14 @@ class WTSynth:
         if phases is None:
             return a @ self.sin_b
         p = np.zeros(self.h)
-        p[:min(len(phases), self.h)] = np.asarray(phases, dtype=float)[:self.h]
+        p[: min(len(phases), self.h)] = np.asarray(phases, dtype=float)[: self.h]
         return (a * np.cos(p)) @ self.sin_b + (a * np.sin(p)) @ self.cos_b
 
     def add_sc(self, amps_sin, amps_cos):
-        s = np.zeros(self.h); s[:min(len(amps_sin), self.h)] = amps_sin[:self.h]
-        c = np.zeros(self.h); c[:min(len(amps_cos), self.h)] = amps_cos[:self.h]
+        s = np.zeros(self.h)
+        s[: min(len(amps_sin), self.h)] = amps_sin[: self.h]
+        c = np.zeros(self.h)
+        c[: min(len(amps_cos), self.h)] = amps_cos[: self.h]
         return s @ self.sin_b + c @ self.cos_b
 
     def band_limit(self, w):
@@ -70,7 +81,7 @@ class WTSynth:
         spec[0] = 0.0
         cut = int(self.h * self.R)
         if cut + 1 < len(spec):
-            spec[cut + 1:] = 0.0
+            spec[cut + 1 :] = 0.0
         return np.fft.irfft(spec, n=self.L)
 
     def formant(self, f0, centers, gains, bws, tilt=1.0):
@@ -79,7 +90,7 @@ class WTSynth:
         for fc, g, bw in zip(centers, gains, bws):
             env += g * np.exp(-0.5 * ((freqs - fc) / bw) ** 2)
         env += 0.02
-        return (1.0 / self.k ** tilt) * env
+        return (1.0 / self.k**tilt) * env
 
 
 def wt_split_steps(n_families, total=WT_SEGMENTS):
@@ -100,7 +111,8 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None):
     if L > WT_MAX_SEG_FRAMES:
         raise ValueError(
             f"Segment would be {L} frames, maximum is {WT_MAX_SEG_FRAMES} "
-            f"({WT_MAX_SECONDS} s / {WT_SEGMENTS}). Pick a higher root note.")
+            f"({WT_MAX_SECONDS} s / {WT_SEGMENTS}). Pick a higher root note."
+        )
     h, h_max = wt_harmonics_for(L, cycles, up_semitones)
 
     s = WTSynth(L, cycles, h)
@@ -118,25 +130,31 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None):
             if peak > 1e-12:
                 w = w / peak
             segs.append(w * WT_PEAK)
-            rows.append([step, fam_name, f"{m:.4f}", desc, step * L,
-                         f"{step * L / WT_SR:.6f}"])
+            rows.append([step, fam_name, f"{m:.4f}", desc, step * L, f"{step * L / WT_SR:.6f}"])
             step += 1
         if progress:
             progress(step / total_steps)
 
     audio = np.concatenate(segs)
     pcm = (np.clip(audio, -1.0, 1.0) * 32767.0).astype("<i2")
-    meta = dict(L=int(L), cycles=int(cycles), f_real=float(f_real),
-                cents=float(cents), h=int(h), h_max=int(h_max),
-                total_frames=int(len(audio)), seconds=float(len(audio) / WT_SR),
-                step_ms=float(L / WT_SR * 1000.0), top_hz=float(h * f_real),
-                counts=[int(c) for c in counts],
-                families=wt_selection_names(selection))
+    meta = dict(
+        L=int(L),
+        cycles=int(cycles),
+        f_real=float(f_real),
+        cents=float(cents),
+        h=int(h),
+        h_max=int(h_max),
+        total_frames=int(len(audio)),
+        seconds=float(len(audio) / WT_SR),
+        step_ms=float(L / WT_SR * 1000.0),
+        top_hz=float(h * f_real),
+        counts=[int(c) for c in counts],
+        families=wt_selection_names(selection),
+    )
     return pcm, rows, meta
 
 
-def wt_render_sweep(family, midi, cycles, up_semitones, steps,
-                    seconds=WT_PREVIEW_SECONDS):
+def wt_render_sweep(family, midi, cycles, up_semitones, steps, seconds=WT_PREVIEW_SECONDS):
     """A morph sweep through one family."""
     L, f_real, _ = wt_tuning_info(midi, cycles)
     h, _ = wt_harmonics_for(L, cycles, up_semitones)
@@ -175,13 +193,15 @@ def wt_render_sweep(family, midi, cycles, up_semitones, steps,
 # .PRM sidecar
 # ---------------------------------------------------------------------------
 
+
 def phrase_number(bank, pad):
     """PHRASE = bank index * 6 + (pad - 1). Bank 'A', pad 1 -> 0."""
     return BANKS.index(bank) * len(PADS) + (pad - 1)
 
 
-def render_prm(bank, pad, start_frame, size_frames, total_frames,
-               template="Init", poly=None, overrides=None):
+def render_prm(
+    bank, pad, start_frame, size_frames, total_frames, template="Init", poly=None, overrides=None
+):
     """The .PRM text for one pad."""
     values = dict(PRM_DEFAULTS)
     values.update(PRM_TEMPLATES[template])
@@ -209,18 +229,28 @@ def write_wavetable_files(pcm, wav_path, prm_text=None):
 
 def write_wavetable_map(rows, meta, csv_path):
     import csv as _csv
+
     with open(csv_path, "w", newline="") as f:
         wr = _csv.writer(f)
-        wr.writerow(["# root", f"{meta['f_real']:.3f} Hz",
-                     f"{meta['cents']:+.2f} cents"])
-        wr.writerow(["# segment", f"{meta['L']} frames",
-                     f"{meta['cycles']} cycles", f"{meta['step_ms']:.3f} ms"])
-        wr.writerow(["# harmonics", meta["h"], f"top {meta['top_hz']/1000:.2f} kHz"])
-        wr.writerow(["# device", f"SIZE = {meta['L']}",
-                     f"START 0-{WT_SEGMENTS - 1} (255 is the file end, not a segment)"])
+        wr.writerow(["# root", f"{meta['f_real']:.3f} Hz", f"{meta['cents']:+.2f} cents"])
+        wr.writerow(
+            [
+                "# segment",
+                f"{meta['L']} frames",
+                f"{meta['cycles']} cycles",
+                f"{meta['step_ms']:.3f} ms",
+            ]
+        )
+        wr.writerow(["# harmonics", meta["h"], f"top {meta['top_hz'] / 1000:.2f} kHz"])
+        wr.writerow(
+            [
+                "# device",
+                f"SIZE = {meta['L']}",
+                f"START 0-{WT_SEGMENTS - 1} (255 is the file end, not a segment)",
+            ]
+        )
         wr.writerow([])
-        wr.writerow(["start_pos", "family", "morph", "waveform", "start_frame",
-                     "start_sec"])
+        wr.writerow(["start_pos", "family", "morph", "waveform", "start_frame", "start_sec"])
         wr.writerows(rows)
 
 
@@ -228,8 +258,11 @@ def wavetable_summary(cfg, meta):
     """Two short lines for the pad's mini display."""
     fams = meta.get("families") or []
     counts = meta.get("counts") or []
-    per = "-" if not counts else (
-        str(counts[0]) if len(set(counts)) == 1 else f"{min(counts)}-{max(counts)}")
+    per = (
+        "-"
+        if not counts
+        else (str(counts[0]) if len(set(counts)) == 1 else f"{min(counts)}-{max(counts)}")
+    )
     dot = " \u00b7 "
     span = f"{dot}+{cfg['up']} st" if cfg.get("up") else ""
     return [

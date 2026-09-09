@@ -4,25 +4,34 @@ These are used by virtually every UI module and must not depend on any
 specific dialog subclass.
 """
 
-import re
 import tkinter as tk
 from tkinter import ttk
 
-from pyp6.constants import (
-    UI_FAMILY, TOOLTIP_DELAY_MS, TOOLTIP_WRAPLENGTH,
-)
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_GREEN, ACCENT_RED, ACCENT_ORANGE, ACCENT_PURPLE,
-    BORDER_COLOR, BORDER_LIGHT, HOVER_BG,
-    BTN_BLUE, BTN_GREEN, BTN_RED, BTN_ORANGE,
+    ACCENT_BLUE,
+    ACCENT_ORANGE,
+    ACCENT_RED,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BORDER_LIGHT,
+    BTN_BLUE,
+    BTN_GREEN,
+    FG_MUTED,
+    FG_TEXT,
 )
 from pyp6.config import load_tooltips_enabled
-
+from pyp6.constants import (
+    TOOLTIP_DELAY_MS,
+    TOOLTIP_WRAPLENGTH,
+    UI_FAMILY,
+)
 
 # ---------------------------------------------------------------------------
 # Styling helpers
 # ---------------------------------------------------------------------------
+
 
 def style_toplevel(win):
     win.configure(bg=BG_DARK)
@@ -35,10 +44,18 @@ def style_label(lbl, bg=None, fg=None, **kw):
 
 
 def style_listbox(lb):
-    lb.config(bg=BG_INPUT, fg=FG_TEXT, selectbackground=ACCENT_BLUE,
-              selectforeground="#00131A", relief="flat", bd=0,
-              highlightthickness=1, highlightbackground=BORDER_COLOR,
-              highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 10))
+    lb.config(
+        bg=BG_INPUT,
+        fg=FG_TEXT,
+        selectbackground=ACCENT_BLUE,
+        selectforeground="#00131A",
+        relief="flat",
+        bd=0,
+        highlightthickness=1,
+        highlightbackground=BORDER_COLOR,
+        highlightcolor=ACCENT_BLUE,
+        font=(UI_FAMILY, 10),
+    )
 
 
 _TREEVIEW_STYLE_READY = False
@@ -54,25 +71,48 @@ def ensure_dark_treeview_style():
         style.theme_use("clam")
     except tk.TclError:
         pass
-    style.configure("Dark.Treeview",
-                     background=BG_INPUT, fieldbackground=BG_INPUT, foreground=FG_TEXT,
-                     borderwidth=0, relief="flat", rowheight=22, font=(UI_FAMILY, 10),
-                     bordercolor=BG_INPUT, lightcolor=BG_INPUT, darkcolor=BG_INPUT)
+    style.configure(
+        "Dark.Treeview",
+        background=BG_INPUT,
+        fieldbackground=BG_INPUT,
+        foreground=FG_TEXT,
+        borderwidth=0,
+        relief="flat",
+        rowheight=22,
+        font=(UI_FAMILY, 10),
+        bordercolor=BG_INPUT,
+        lightcolor=BG_INPUT,
+        darkcolor=BG_INPUT,
+    )
     style.map("Dark.Treeview", bordercolor=[("focus", BG_INPUT)])
-    style.map("Dark.Treeview",
-              background=[("selected", ACCENT_BLUE)],
-              foreground=[("selected", "#00131A")])
-    style.configure("Dark.Treeview.Heading",
-                     background=BG_PANEL, foreground=FG_MUTED, relief="flat",
-                     font=(UI_FAMILY, 9, "bold"))
+    style.map(
+        "Dark.Treeview",
+        background=[("selected", ACCENT_BLUE)],
+        foreground=[("selected", "#00131A")],
+    )
+    style.configure(
+        "Dark.Treeview.Heading",
+        background=BG_PANEL,
+        foreground=FG_MUTED,
+        relief="flat",
+        font=(UI_FAMILY, 9, "bold"),
+    )
     style.map("Dark.Treeview.Heading", background=[("active", BG_PANEL)])
     style.layout("Dark.Treeview", style.layout("Treeview"))
 
-    style.configure("Dark.Vertical.TScrollbar",
-                     background=BG_INPUT, troughcolor=BG_PANEL, bordercolor=BG_PANEL,
-                     arrowcolor=FG_MUTED, relief="flat", arrowsize=12, width=10)
-    style.map("Dark.Vertical.TScrollbar",
-              background=[("active", ACCENT_BLUE), ("pressed", ACCENT_BLUE)])
+    style.configure(
+        "Dark.Vertical.TScrollbar",
+        background=BG_INPUT,
+        troughcolor=BG_PANEL,
+        bordercolor=BG_PANEL,
+        arrowcolor=FG_MUTED,
+        relief="flat",
+        arrowsize=12,
+        width=10,
+    )
+    style.map(
+        "Dark.Vertical.TScrollbar", background=[("active", ACCENT_BLUE), ("pressed", ACCENT_BLUE)]
+    )
 
     _TREEVIEW_STYLE_READY = True
 
@@ -80,8 +120,9 @@ def ensure_dark_treeview_style():
 def add_focus_border(widget, container=None):
     """Gives a widget the same border behaviour tk.Listbox gets for free."""
     box = container if container is not None else widget.master
-    box.configure(highlightthickness=1, highlightbackground=BORDER_COLOR,
-                  highlightcolor=BORDER_COLOR)
+    box.configure(
+        highlightthickness=1, highlightbackground=BORDER_COLOR, highlightcolor=BORDER_COLOR
+    )
 
     def on_focus(_event=None):
         box.configure(highlightbackground=ACCENT_BLUE, highlightcolor=ACCENT_BLUE)
@@ -97,11 +138,18 @@ def add_focus_border(widget, container=None):
 
 def style_checkbutton(cb, bg=None):
     bg = bg or BG_DARK
-    cb.config(bg=bg, fg=FG_TEXT, selectcolor=BG_INPUT,
-              activebackground=bg, activeforeground=FG_TEXT,
-              disabledforeground=FG_MUTED,
-              relief="flat", bd=0, highlightthickness=0,
-              font=(UI_FAMILY, 9))
+    cb.config(
+        bg=bg,
+        fg=FG_TEXT,
+        selectcolor=BG_INPUT,
+        activebackground=bg,
+        activeforeground=FG_TEXT,
+        disabledforeground=FG_MUTED,
+        relief="flat",
+        bd=0,
+        highlightthickness=0,
+        font=(UI_FAMILY, 9),
+    )
 
 
 def center_toplevel_on_parent(win, parent):
@@ -136,6 +184,7 @@ def center_toplevel_on_parent(win, parent):
 # ---------------------------------------------------------------------------
 # Dark message dialogs
 # ---------------------------------------------------------------------------
+
 
 class _DarkMessageDialog(tk.Toplevel):
     """Dark-themed replacement for tkinter.messagebox popups."""
@@ -177,15 +226,36 @@ class _DarkMessageDialog(tk.Toplevel):
         btn_row.pack(fill="x", pady=(16, 0))
 
         if buttons == "yesno":
-            no_btn = RoundedButton(btn_row, text="No", command=self._on_no,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=80)
+            no_btn = RoundedButton(
+                btn_row,
+                text="No",
+                command=self._on_no,
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                parent_bg=BG_DARK,
+                width=80,
+            )
             no_btn.pack(side="right", padx=4)
-            yes_btn = RoundedButton(btn_row, text="Yes", command=self._on_yes,
-                                     bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=80)
+            yes_btn = RoundedButton(
+                btn_row,
+                text="Yes",
+                command=self._on_yes,
+                bg=BTN_GREEN,
+                fg="#FFFFFF",
+                parent_bg=BG_DARK,
+                width=80,
+            )
             yes_btn.pack(side="right", padx=4)
         else:
-            ok_btn = RoundedButton(btn_row, text="OK", command=self._on_ok,
-                                    bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK, width=80)
+            ok_btn = RoundedButton(
+                btn_row,
+                text="OK",
+                command=self._on_ok,
+                bg=BTN_BLUE,
+                fg="#FFFFFF",
+                parent_bg=BG_DARK,
+                width=80,
+            )
             ok_btn.pack(side="right", padx=4)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -277,10 +347,19 @@ class _DarkTextPromptDialog(tk.Toplevel):
         prompt_label.pack(fill="x", pady=(0, 8))
 
         self.entry_var = tk.StringVar(value=initial)
-        entry = tk.Entry(body, textvariable=self.entry_var, bg=BG_INPUT, fg=FG_TEXT,
-                          insertbackground=FG_TEXT, relief="flat", highlightthickness=1,
-                          highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_BLUE,
-                          font=(UI_FAMILY, 10), width=32)
+        entry = tk.Entry(
+            body,
+            textvariable=self.entry_var,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 10),
+            width=32,
+        )
         entry.pack(fill="x")
         entry.bind("<Return>", lambda e: self._on_ok())
         entry.bind("<Escape>", lambda e: self._on_cancel())
@@ -289,11 +368,25 @@ class _DarkTextPromptDialog(tk.Toplevel):
 
         btn_row = tk.Frame(body, bg=BG_DARK)
         btn_row.pack(fill="x", pady=(16, 0))
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self._on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=80)
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self._on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=80,
+        )
         cancel_btn.pack(side="right", padx=4)
-        ok_btn = RoundedButton(btn_row, text="OK", command=self._on_ok,
-                                bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK, width=80)
+        ok_btn = RoundedButton(
+            btn_row,
+            text="OK",
+            command=self._on_ok,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=80,
+        )
         ok_btn.pack(side="right", padx=4)
 
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
@@ -444,10 +537,20 @@ class Tooltip:
             tip.withdraw()
             tip.wm_overrideredirect(True)
             tip.configure(bg=BORDER_LIGHT)
-            label = tk.Label(tip, text=self.text, justify="left", anchor="w",
-                             bg=BG_INPUT, fg=FG_TEXT, font=(UI_FAMILY, 9),
-                             wraplength=self.wraplength, padx=8, pady=5,
-                             bd=0, highlightthickness=0)
+            label = tk.Label(
+                tip,
+                text=self.text,
+                justify="left",
+                anchor="w",
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                font=(UI_FAMILY, 9),
+                wraplength=self.wraplength,
+                padx=8,
+                pady=5,
+                bd=0,
+                highlightthickness=0,
+            )
             label.pack(padx=1, pady=1)
             tip.update_idletasks()
             x, y = self._position(tip)

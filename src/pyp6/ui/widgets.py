@@ -3,28 +3,56 @@
 import time
 import tkinter as tk
 
-from pyp6.constants import UI_FAMILY
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, BORDER_COLOR, BORDER_LIGHT, HOVER_BG,
+    ACCENT_BLUE,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BORDER_LIGHT,
     BTN_BLUE,
+    FG_MUTED,
+    FG_TEXT,
+    HOVER_BG,
 )
+from pyp6.constants import UI_FAMILY
 
 # Performance counters - shared with __main__ startup diagnostics.
 _PERF = {
-    "panel_redraws": 0, "panel_redraw_time": 0.0,
-    "button_draws": 0, "button_draw_time": 0.0,
-    "dropdown_draws": 0, "dropdown_draw_time": 0.0,
+    "panel_redraws": 0,
+    "panel_redraw_time": 0.0,
+    "button_draws": 0,
+    "button_draw_time": 0.0,
+    "dropdown_draws": 0,
+    "dropdown_draw_time": 0.0,
 }
 
 
 class RoundedButton(tk.Canvas):
-    def __init__(self, parent, text="", command=None, bg=BTN_BLUE, fg="#FFFFFF",
-                 parent_bg=None, width=110, height=32, radius=10,
-                 font=(UI_FAMILY, 9, "bold"), state="normal", outline_color=None):
+    def __init__(
+        self,
+        parent,
+        text="",
+        command=None,
+        bg=BTN_BLUE,
+        fg="#FFFFFF",
+        parent_bg=None,
+        width=110,
+        height=32,
+        radius=10,
+        font=(UI_FAMILY, 9, "bold"),
+        state="normal",
+        outline_color=None,
+    ):
         parent_bg = parent_bg or parent.cget("bg")
-        super().__init__(parent, width=width, height=height, bg=parent_bg,
-                          highlightthickness=0, bd=0, cursor="hand2")
+        super().__init__(
+            parent,
+            width=width,
+            height=height,
+            bg=parent_bg,
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2",
+        )
         self.command = command
         self.bg_color = bg
         self.fg_color = fg
@@ -41,10 +69,14 @@ class RoundedButton(tk.Canvas):
         self.bind("<Leave>", self._on_leave)
 
     def _round_rect(self, x1, y1, x2, y2, r, **kw):
-        self.create_arc(x1, y1, x1 + 2*r, y1 + 2*r, start=90, extent=90, style="pieslice", **kw)
-        self.create_arc(x2 - 2*r, y1, x2, y1 + 2*r, start=0, extent=90, style="pieslice", **kw)
-        self.create_arc(x1, y2 - 2*r, x1 + 2*r, y2, start=180, extent=90, style="pieslice", **kw)
-        self.create_arc(x2 - 2*r, y2 - 2*r, x2, y2, start=270, extent=90, style="pieslice", **kw)
+        self.create_arc(x1, y1, x1 + 2 * r, y1 + 2 * r, start=90, extent=90, style="pieslice", **kw)
+        self.create_arc(x2 - 2 * r, y1, x2, y1 + 2 * r, start=0, extent=90, style="pieslice", **kw)
+        self.create_arc(
+            x1, y2 - 2 * r, x1 + 2 * r, y2, start=180, extent=90, style="pieslice", **kw
+        )
+        self.create_arc(
+            x2 - 2 * r, y2 - 2 * r, x2, y2, start=270, extent=90, style="pieslice", **kw
+        )
         self.create_rectangle(x1 + r, y1, x2 - r, y2, **kw)
         self.create_rectangle(x1, y1 + r, x2, y2 - r, **kw)
 
@@ -54,13 +86,17 @@ class RoundedButton(tk.Canvas):
         fill = self._lighten(self.bg_color) if hover and self._state == "normal" else self.bg_color
         if self._state == "disabled":
             fill = BORDER_COLOR
-        self._round_rect(1, 1, self.width - 1, self.height - 1, self.radius, fill=fill, outline=fill)
+        self._round_rect(
+            1, 1, self.width - 1, self.height - 1, self.radius, fill=fill, outline=fill
+        )
         if self.outline_color and self._state == "normal":
-            self._round_outline(1, 1, self.width - 1, self.height - 1,
-                                self.radius, self.outline_color, 2)
+            self._round_outline(
+                1, 1, self.width - 1, self.height - 1, self.radius, self.outline_color, 2
+            )
         text_fg = self.fg_color if self._state == "normal" else FG_MUTED
-        self.create_text(self.width / 2, self.height / 2, text=self.text,
-                          fill=text_fg, font=self.font)
+        self.create_text(
+            self.width / 2, self.height / 2, text=self.text, fill=text_fg, font=self.font
+        )
         _PERF["button_draws"] += 1
         _PERF["button_draw_time"] += time.time() - _t0
 
@@ -74,10 +110,23 @@ class RoundedButton(tk.Canvas):
         inset = width / 2
         x1, y1, x2, y2 = x1 + inset, y1 + inset, x2 - inset, y2 - inset
         r = max(1, min(r, (x2 - x1) / 2, (y2 - y1) / 2))
-        for cx, cy, start in ((x1, y1, 90), (x2 - 2 * r, y1, 0),
-                              (x1, y2 - 2 * r, 180), (x2 - 2 * r, y2 - 2 * r, 270)):
-            self.create_arc(cx, cy, cx + 2 * r, cy + 2 * r, start=start,
-                            extent=90, style="arc", outline=color, width=width)
+        for cx, cy, start in (
+            (x1, y1, 90),
+            (x2 - 2 * r, y1, 0),
+            (x1, y2 - 2 * r, 180),
+            (x2 - 2 * r, y2 - 2 * r, 270),
+        ):
+            self.create_arc(
+                cx,
+                cy,
+                cx + 2 * r,
+                cy + 2 * r,
+                start=start,
+                extent=90,
+                style="arc",
+                outline=color,
+                width=width,
+            )
         self.create_line(x1 + r, y1, x2 - r, y1, fill=color, width=width)
         self.create_line(x1 + r, y2, x2 - r, y2, fill=color, width=width)
         self.create_line(x1, y1 + r, x1, y2 - r, fill=color, width=width)
@@ -85,13 +134,13 @@ class RoundedButton(tk.Canvas):
 
     def _darken(self, hex_color, amount=26):
         hex_color = hex_color.lstrip("#")
-        r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        r, g, b = (int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
         r, g, b = (max(0, c - amount) for c in (r, g, b))
         return f"#{r:02x}{g:02x}{b:02x}"
 
     def _lighten(self, hex_color, amount=18):
         hex_color = hex_color.lstrip("#")
-        r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        r, g, b = (int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
         r, g, b = (min(255, c + amount) for c in (r, g, b))
         return f"#{r:02x}{g:02x}{b:02x}"
 
@@ -119,12 +168,30 @@ class RoundedButton(tk.Canvas):
 
 
 class RoundedDropdown(tk.Canvas):
-    def __init__(self, parent, variable, values, command=None, parent_bg=None,
-                 width=110, height=30, radius=10, font=(UI_FAMILY, 9, "bold"),
-                 value_color_fn=None, entry_builder=None):
+    def __init__(
+        self,
+        parent,
+        variable,
+        values,
+        command=None,
+        parent_bg=None,
+        width=110,
+        height=30,
+        radius=10,
+        font=(UI_FAMILY, 9, "bold"),
+        value_color_fn=None,
+        entry_builder=None,
+    ):
         parent_bg = parent_bg or parent.cget("bg")
-        super().__init__(parent, width=width, height=height, bg=parent_bg,
-                          highlightthickness=0, bd=0, cursor="hand2")
+        super().__init__(
+            parent,
+            width=width,
+            height=height,
+            bg=parent_bg,
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2",
+        )
         self.variable = variable
         self.values = values
         self.command = command
@@ -148,10 +215,14 @@ class RoundedDropdown(tk.Canvas):
         self.variable.trace_add("write", lambda *a: self._draw())
 
     def _round_rect(self, x1, y1, x2, y2, r, **kw):
-        self.create_arc(x1, y1, x1 + 2*r, y1 + 2*r, start=90, extent=90, style="pieslice", **kw)
-        self.create_arc(x2 - 2*r, y1, x2, y1 + 2*r, start=0, extent=90, style="pieslice", **kw)
-        self.create_arc(x1, y2 - 2*r, x1 + 2*r, y2, start=180, extent=90, style="pieslice", **kw)
-        self.create_arc(x2 - 2*r, y2 - 2*r, x2, y2, start=270, extent=90, style="pieslice", **kw)
+        self.create_arc(x1, y1, x1 + 2 * r, y1 + 2 * r, start=90, extent=90, style="pieslice", **kw)
+        self.create_arc(x2 - 2 * r, y1, x2, y1 + 2 * r, start=0, extent=90, style="pieslice", **kw)
+        self.create_arc(
+            x1, y2 - 2 * r, x1 + 2 * r, y2, start=180, extent=90, style="pieslice", **kw
+        )
+        self.create_arc(
+            x2 - 2 * r, y2 - 2 * r, x2, y2, start=270, extent=90, style="pieslice", **kw
+        )
         self.create_rectangle(x1 + r, y1, x2 - r, y2, **kw)
         self.create_rectangle(x1, y1 + r, x2, y2 - r, **kw)
 
@@ -159,18 +230,40 @@ class RoundedDropdown(tk.Canvas):
         _t0 = time.time()
         self.delete("all")
         fill = HOVER_BG if hover else BG_INPUT
-        self._round_rect(1, 1, self.width - 1, self.height - 1, self.radius, fill=fill, outline=fill)
-        self.create_text(14, self.height / 2, text=str(self.variable.get()),
-                          fill=FG_TEXT, font=self.font, anchor="w")
-        self.create_text(self.width - 14, self.height / 2, text="\u25be",
-                          fill=ACCENT_BLUE, font=(UI_FAMILY, 8), anchor="e")
+        self._round_rect(
+            1, 1, self.width - 1, self.height - 1, self.radius, fill=fill, outline=fill
+        )
+        self.create_text(
+            14,
+            self.height / 2,
+            text=str(self.variable.get()),
+            fill=FG_TEXT,
+            font=self.font,
+            anchor="w",
+        )
+        self.create_text(
+            self.width - 14,
+            self.height / 2,
+            text="\u25be",
+            fill=ACCENT_BLUE,
+            font=(UI_FAMILY, 8),
+            anchor="e",
+        )
         _PERF["dropdown_draws"] += 1
         _PERF["dropdown_draw_time"] += time.time() - _t0
 
     def _open_menu(self, event):
-        menu = tk.Menu(self, tearoff=0, bg=BG_INPUT, fg=FG_TEXT,
-                        activebackground=ACCENT_BLUE, activeforeground="#00131A",
-                        font=self.font, bd=0, relief="flat")
+        menu = tk.Menu(
+            self,
+            tearoff=0,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            activebackground=ACCENT_BLUE,
+            activeforeground="#00131A",
+            font=self.font,
+            bd=0,
+            relief="flat",
+        )
         for v in self.values:
             color = self.value_color_fn(v) if self.value_color_fn else None
             kwargs = {"foreground": color} if color else {}
@@ -197,10 +290,19 @@ class RoundedPanel(tk.Frame):
     content (exactly like a LabelFrame would size itself) -- no manual
     width/height math needed."""
 
-    def __init__(self, parent, title="", parent_bg=None, panel_bg=BG_PANEL,
-                 border=BORDER_LIGHT, radius=14, title_fg=ACCENT_BLUE,
-                 title_font=(UI_FAMILY, 10, "bold"),
-                 body_padx=14, body_pady=(30, 12)):
+    def __init__(
+        self,
+        parent,
+        title="",
+        parent_bg=None,
+        panel_bg=BG_PANEL,
+        border=BORDER_LIGHT,
+        radius=14,
+        title_fg=ACCENT_BLUE,
+        title_font=(UI_FAMILY, 10, "bold"),
+        body_padx=14,
+        body_pady=(30, 12),
+    ):
         parent_bg = parent_bg or parent.cget("bg")
         super().__init__(parent, bg=parent_bg)
         self.grid_rowconfigure(0, weight=1)
@@ -224,19 +326,99 @@ class RoundedPanel(tk.Frame):
     def _round_rect(self, x1, y1, x2, y2, r, fill=None, outline=None, width=1):
         # 1) Filled background: pieslices/rectangles use fill as their own
         #    outline color too, so no stray radius/seam lines are visible.
-        self.canvas.create_arc(x1, y1, x1 + 2*r, y1 + 2*r, start=90, extent=90, style="pieslice", fill=fill, outline=fill)
-        self.canvas.create_arc(x2 - 2*r, y1, x2, y1 + 2*r, start=0, extent=90, style="pieslice", fill=fill, outline=fill)
-        self.canvas.create_arc(x1, y2 - 2*r, x1 + 2*r, y2, start=180, extent=90, style="pieslice", fill=fill, outline=fill)
-        self.canvas.create_arc(x2 - 2*r, y2 - 2*r, x2, y2, start=270, extent=90, style="pieslice", fill=fill, outline=fill)
+        self.canvas.create_arc(
+            x1,
+            y1,
+            x1 + 2 * r,
+            y1 + 2 * r,
+            start=90,
+            extent=90,
+            style="pieslice",
+            fill=fill,
+            outline=fill,
+        )
+        self.canvas.create_arc(
+            x2 - 2 * r,
+            y1,
+            x2,
+            y1 + 2 * r,
+            start=0,
+            extent=90,
+            style="pieslice",
+            fill=fill,
+            outline=fill,
+        )
+        self.canvas.create_arc(
+            x1,
+            y2 - 2 * r,
+            x1 + 2 * r,
+            y2,
+            start=180,
+            extent=90,
+            style="pieslice",
+            fill=fill,
+            outline=fill,
+        )
+        self.canvas.create_arc(
+            x2 - 2 * r,
+            y2 - 2 * r,
+            x2,
+            y2,
+            start=270,
+            extent=90,
+            style="pieslice",
+            fill=fill,
+            outline=fill,
+        )
         self.canvas.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline=fill)
         self.canvas.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline=fill)
 
         # 2) Border: drawn once on top, as pure arcs (no radius lines) + straight edges.
         if outline:
-            self.canvas.create_arc(x1, y1, x1 + 2*r, y1 + 2*r, start=90, extent=90, style="arc", outline=outline, width=width)
-            self.canvas.create_arc(x2 - 2*r, y1, x2, y1 + 2*r, start=0, extent=90, style="arc", outline=outline, width=width)
-            self.canvas.create_arc(x1, y2 - 2*r, x1 + 2*r, y2, start=180, extent=90, style="arc", outline=outline, width=width)
-            self.canvas.create_arc(x2 - 2*r, y2 - 2*r, x2, y2, start=270, extent=90, style="arc", outline=outline, width=width)
+            self.canvas.create_arc(
+                x1,
+                y1,
+                x1 + 2 * r,
+                y1 + 2 * r,
+                start=90,
+                extent=90,
+                style="arc",
+                outline=outline,
+                width=width,
+            )
+            self.canvas.create_arc(
+                x2 - 2 * r,
+                y1,
+                x2,
+                y1 + 2 * r,
+                start=0,
+                extent=90,
+                style="arc",
+                outline=outline,
+                width=width,
+            )
+            self.canvas.create_arc(
+                x1,
+                y2 - 2 * r,
+                x1 + 2 * r,
+                y2,
+                start=180,
+                extent=90,
+                style="arc",
+                outline=outline,
+                width=width,
+            )
+            self.canvas.create_arc(
+                x2 - 2 * r,
+                y2 - 2 * r,
+                x2,
+                y2,
+                start=270,
+                extent=90,
+                style="arc",
+                outline=outline,
+                width=width,
+            )
             self.canvas.create_line(x1 + r, y1, x2 - r, y1, fill=outline, width=width)
             self.canvas.create_line(x1 + r, y2, x2 - r, y2, fill=outline, width=width)
             self.canvas.create_line(x1, y1 + r, x1, y2 - r, fill=outline, width=width)
@@ -278,11 +460,20 @@ class RoundedPanel(tk.Frame):
         _t0 = time.time()
         self.canvas.delete("all")
         r = min(self._radius, w // 2, h // 2)
-        self._round_rect(1, 1, w - 1, h - 1, r, fill=self._panel_bg, outline=self._border,
-                          width=self._border_width)
+        self._round_rect(
+            1,
+            1,
+            w - 1,
+            h - 1,
+            r,
+            fill=self._panel_bg,
+            outline=self._border,
+            width=self._border_width,
+        )
         if self._title:
-            self.canvas.create_text(16, 16, text=self._title, anchor="w",
-                                     fill=self._title_fg, font=self._title_font)
+            self.canvas.create_text(
+                16, 16, text=self._title, anchor="w", fill=self._title_fg, font=self._title_font
+            )
         _PERF["panel_redraws"] += 1
         _PERF["panel_redraw_time"] += time.time() - _t0
 
@@ -298,8 +489,7 @@ class RoundedScrollbar(tk.Canvas):
 
     THICKNESS = 10
 
-    def __init__(self, parent, orient="vertical", command=None, parent_bg=None,
-                 auto_hide=True):
+    def __init__(self, parent, orient="vertical", command=None, parent_bg=None, auto_hide=True):
         self.orient = orient
         self.command = command
         parent_bg = parent_bg or parent.cget("bg")
@@ -308,8 +498,11 @@ class RoundedScrollbar(tk.Canvas):
         # scrollbar demand that much room from whatever holds it. fill="x"
         # or fill="y" stretches it to the real length anyway, so asking for
         # 1 px costs nothing.
-        kw = ({"width": self.THICKNESS, "height": 1} if orient == "vertical"
-              else {"height": self.THICKNESS, "width": 1})
+        kw = (
+            {"width": self.THICKNESS, "height": 1}
+            if orient == "vertical"
+            else {"height": self.THICKNESS, "width": 1}
+        )
         super().__init__(parent, bg=parent_bg, highlightthickness=0, bd=0, **kw)
         self._first, self._last = 0.0, 1.0
         self._visible = True
@@ -325,8 +518,7 @@ class RoundedScrollbar(tk.Canvas):
         self.bind("<ButtonRelease-1>", lambda e: setattr(self, "_drag_origin", None))
 
     def _span(self):
-        return (self.winfo_height() if self.orient == "vertical"
-                else self.winfo_width())
+        return self.winfo_height() if self.orient == "vertical" else self.winfo_width()
 
     def set(self, first, last):
         self._first, self._last = float(first), float(last)
@@ -348,7 +540,7 @@ class RoundedScrollbar(tk.Canvas):
         same scrollbar works in a grid-based dialog and a pack-based one."""
         if self.winfo_manager() == "pack":
             info = dict(self.pack_info())
-            if "in" in info:                 # pack() spells this one in_
+            if "in" in info:  # pack() spells this one in_
                 info["in_"] = info.pop("in")
             self._pack_info = info
             self.pack_forget()
@@ -360,8 +552,13 @@ class RoundedScrollbar(tk.Canvas):
             try:
                 self.pack(**self._pack_info)
             except tk.TclError:
-                self.pack(**{k: v for k, v in self._pack_info.items()
-                             if k not in ("in_", "after", "before")})
+                self.pack(
+                    **{
+                        k: v
+                        for k, v in self._pack_info.items()
+                        if k not in ("in_", "after", "before")
+                    }
+                )
         else:
             self.grid()
 
@@ -389,11 +586,14 @@ class RoundedScrollbar(tk.Canvas):
             return
         self.create_oval(x1, y1, x1 + 2 * r, y1 + 2 * r, fill=color, outline=color)
         self.create_oval(x2 - 2 * r, y2 - 2 * r, x2, y2, fill=color, outline=color)
-        self.create_rectangle(x1 + r if x2 - x1 > y2 - y1 else x1,
-                              y1 if x2 - x1 > y2 - y1 else y1 + r,
-                              x2 - r if x2 - x1 > y2 - y1 else x2,
-                              y2 if x2 - x1 > y2 - y1 else y2 - r,
-                              fill=color, outline=color)
+        self.create_rectangle(
+            x1 + r if x2 - x1 > y2 - y1 else x1,
+            y1 if x2 - x1 > y2 - y1 else y1 + r,
+            x2 - r if x2 - x1 > y2 - y1 else x2,
+            y2 if x2 - x1 > y2 - y1 else y2 - r,
+            fill=color,
+            outline=color,
+        )
 
     def _fraction(self, event):
         span = max(self._span(), 1)

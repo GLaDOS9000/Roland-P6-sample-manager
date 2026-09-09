@@ -1,11 +1,8 @@
 """Tests for pyp6.config."""
 
 import os
-import json
-import tempfile
 
 from pyp6.config import ensure_app_dirs
-from pyp6.constants import TEMP_DIR
 
 
 def test_ensure_app_dirs_creates_temp(tmp_path, monkeypatch):

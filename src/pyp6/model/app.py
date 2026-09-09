@@ -1,19 +1,16 @@
 """P6ManagerApp: the main application class."""
 
-import os
-import sys
-import copy
-import shutil
-import uuid
-import wave
 import contextlib
-import time
-import threading
+import copy
+import os
 import queue
+import shutil
+import threading
+import time
 import time as _time
 import tkinter as tk
-
-import numpy as np
+import uuid
+import wave
 
 try:
     import sounddevice as sd
@@ -26,55 +23,84 @@ except ImportError:
     sf = None
 
 from pyp6 import APP_VERSION
-from pyp6.constants import (
-    APP_NAME, APP_SUBTITLE, UI_FAMILY,
-    BANKS, PADS, MAIN_MIN_W, MAIN_MIN_H,
-    MAX_UPLOAD_BYTES, MAX_UNDO_STEPS,
-    TEMP_DIR, WAVETABLE_DIR,
-    TARGET_RATES, PRM_TEMPLATES,
-    PRESET_FORMAT_VERSION,
-    WT_SEGMENTS,
-)
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_GREEN, ACCENT_ORANGE, ACCENT_RED,
-    BORDER_COLOR, BORDER_LIGHT, WAVE_BG, WAVE_COLOR,
-    BTN_BLUE, BTN_GREEN, BTN_ORANGE, BTN_RED,
-)
-from pyp6.theme import blend_colors, readable_on
-import pyp6.config as _cfg
-from pyp6.config import (
-    resource_path,
-    load_last_import_root, save_last_import_root,
-    load_recent_presets, add_recent_preset,
-    is_preset_folder, read_preset_manifest, write_preset_manifest,
-    verify_preset_folder,
-    apply_saved_storage_threshold,
-)
-from pyp6.audio.playback import (
-    PYDUB_AVAILABLE, FFMPEG_AVAILABLE, warn_pydub_missing_once,
-)
-from pyp6.audio.info import (
-    get_wav_info, get_wav_sample_width,
-    check_duration_warning, compute_truncate_fraction,
+    ACCENT_BLUE,
+    ACCENT_GREEN,
+    ACCENT_ORANGE,
+    ACCENT_RED,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BORDER_LIGHT,
+    BTN_BLUE,
+    BTN_GREEN,
+    BTN_ORANGE,
+    BTN_RED,
+    FG_MUTED,
+    FG_TEXT,
+    WAVE_BG,
+    WAVE_COLOR,
 )
 from pyp6.audio.conversion import compute_export_ready_path, pitch_speed_factor
-from pyp6.synth.engine import render_prm
-from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel, RoundedScrollbar
-from pyp6.ui.waveform import draw_waveform_on_canvas, draw_truncate_overlay
-from pyp6.ui.dialogs_common import (
-    style_toplevel, style_label, style_listbox, style_checkbutton,
-    ensure_dark_treeview_style,
-    center_toplevel_on_parent,
-    dark_showinfo, dark_showwarning, dark_showerror, dark_askyesno,
-    add_tooltip,
+from pyp6.audio.info import (
+    check_duration_warning,
+    get_wav_info,
+    get_wav_sample_width,
+)
+from pyp6.audio.playback import (
+    PYDUB_AVAILABLE,
+    warn_pydub_missing_once,
+)
+from pyp6.config import (
+    add_recent_preset,
+    is_preset_folder,
+    load_last_import_root,
+    load_recent_presets,
+    read_preset_manifest,
+    resource_path,
+    save_last_import_root,
+    verify_preset_folder,
+    write_preset_manifest,
+)
+from pyp6.constants import (
+    APP_NAME,
+    APP_SUBTITLE,
+    BANKS,
+    MAIN_MIN_H,
+    MAIN_MIN_W,
+    MAX_UNDO_STEPS,
+    MAX_UPLOAD_BYTES,
+    PADS,
+    PRESET_FORMAT_VERSION,
+    PRM_TEMPLATES,
+    TEMP_DIR,
+    UI_FAMILY,
+    WAVETABLE_DIR,
 )
 from pyp6.model.sample_slot import SampleSlot
-
+from pyp6.synth.engine import render_prm
+from pyp6.theme import blend_colors, readable_on
+from pyp6.ui.dialogs_common import (
+    add_tooltip,
+    dark_askyesno,
+    dark_showerror,
+    dark_showwarning,
+    ensure_dark_treeview_style,
+    style_checkbutton,
+    style_label,
+)
+from pyp6.ui.waveform import draw_truncate_overlay, draw_waveform_on_canvas
+from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel, RoundedScrollbar
 
 # These are set from __main__.py before the app is constructed.
 DEBUG_STARTUP = False
-_log_timing = lambda label: None   # replaced by __main__
+
+
+def _log_timing(label):  # replaced by __main__
+    pass
+
+
 DND_AVAILABLE = False
 DND_FILES = None
 PYP6_LOGO_PNG = ""
@@ -83,6 +109,7 @@ PYP6_LOGO_PNG = ""
 class P6ManagerApp:
     def __init__(self, root):
         import pyp6._about_helpers as _ah
+
         _ah._DND_APP = self  # so dnd_status_text() can report the live registration state
         self.root = root
         self.root.title(f"{APP_NAME} {APP_SUBTITLE} {APP_VERSION}")
@@ -116,15 +143,24 @@ class P6ManagerApp:
         bank_lbl = tk.Label(top, text="Bank:")
         style_label(bank_lbl, font=(UI_FAMILY, 11, "bold"))
         bank_lbl.pack(side="left")
-        bank_menu = RoundedDropdown(top, self.current_bank, BANKS, command=self.switch_bank,
-                                    parent_bg=BG_DARK, width=70, height=30,
-                                    value_color_fn=self._bank_dropdown_color,
-                                    entry_builder=self._build_bank_menu_entry)
+        bank_menu = RoundedDropdown(
+            top,
+            self.current_bank,
+            BANKS,
+            command=self.switch_bank,
+            parent_bg=BG_DARK,
+            width=70,
+            height=30,
+            value_color_fn=self._bank_dropdown_color,
+            entry_builder=self._build_bank_menu_entry,
+        )
         bank_menu.pack(side="left", padx=8)
-        add_tooltip(bank_menu,
-                    "Switches the 6 pads below to another bank (A-H). Each bank keeps its "
-                    "own pads and settings; banks that already contain samples are shown "
-                    "in blue. Hover the current bank in the list for Copy To / Move To.")
+        add_tooltip(
+            bank_menu,
+            "Switches the 6 pads below to another bank (A-H). Each bank keeps its "
+            "own pads and settings; banks that already contain samples are shown "
+            "in blue. Hover the current bank in the list for Copy To / Move To.",
+        )
 
         # One Force Mono flag PER BANK, not a single global one - a single
         # shared flag can't be expressed correctly once presets can hold a
@@ -134,52 +170,96 @@ class P6ManagerApp:
         # right BooleanVar on every bank switch.
         self.force_mono_vars = {bank: tk.BooleanVar(value=False) for bank in BANKS}
         self.force_mono_cb = tk.Checkbutton(
-            top, text="Force Mono (this bank)", variable=self.force_mono_vars[self.current_bank.get()],
-            command=self.on_force_mono_changed)
+            top,
+            text="Force Mono (this bank)",
+            variable=self.force_mono_vars[self.current_bank.get()],
+            command=self.on_force_mono_changed,
+        )
         style_checkbutton(self.force_mono_cb)
         self.force_mono_cb.pack(side="left", padx=(4, 0))
-        add_tooltip(self.force_mono_cb,
-                    "Exports every pad of the CURRENT bank as mono - roughly halves the "
-                    "size on the device. Stored per bank, so other banks keep their own "
-                    "setting.")
+        add_tooltip(
+            self.force_mono_cb,
+            "Exports every pad of the CURRENT bank as mono - roughly halves the "
+            "size on the device. Stored per bank, so other banks keep their own "
+            "setting.",
+        )
 
         self.path_label = tk.Label(top, text=f"IMPORT Path: {self.import_root}")
         style_label(self.path_label, fg=FG_MUTED, font=(UI_FAMILY, 9))
         self.path_label.pack(side="left", padx=20)
 
-        settings_btn = RoundedButton(top, text="\u2699", command=self.open_settings,
-                                      bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK,
-                                      width=36, height=30, font=(UI_FAMILY, 13, "bold"))
+        settings_btn = RoundedButton(
+            top,
+            text="\u2699",
+            command=self.open_settings,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=36,
+            height=30,
+            font=(UI_FAMILY, 13, "bold"),
+        )
         settings_btn.pack(side="right", padx=4)
-        add_tooltip(settings_btn,
-                    "Settings: IMPORT folder, theme, tooltips, ffmpeg/ffprobe paths, "
-                    "defaults and temporary files.")
+        add_tooltip(
+            settings_btn,
+            "Settings: IMPORT folder, theme, tooltips, ffmpeg/ffprobe paths, "
+            "defaults and temporary files.",
+        )
 
-        self.redo_btn = RoundedButton(top, text="\u21b7", command=self.redo,
-                                       bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK,
-                                       width=36, height=30, font=(UI_FAMILY, 13, "bold"),
-                                       state="disabled")
+        self.redo_btn = RoundedButton(
+            top,
+            text="\u21b7",
+            command=self.redo,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=36,
+            height=30,
+            font=(UI_FAMILY, 13, "bold"),
+            state="disabled",
+        )
         self.redo_btn.pack(side="right", padx=(0, 4))
-        add_tooltip(self.redo_btn,
-                    "Redo the change you just undid.\nShortcut: Ctrl+Shift+Z or Ctrl+Y")
-        self.undo_btn = RoundedButton(top, text="\u21b6", command=self.undo,
-                                       bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK,
-                                       width=36, height=30, font=(UI_FAMILY, 13, "bold"),
-                                       state="disabled")
+        add_tooltip(
+            self.redo_btn, "Redo the change you just undid.\nShortcut: Ctrl+Shift+Z or Ctrl+Y"
+        )
+        self.undo_btn = RoundedButton(
+            top,
+            text="\u21b6",
+            command=self.undo,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=36,
+            height=30,
+            font=(UI_FAMILY, 13, "bold"),
+            state="disabled",
+        )
         self.undo_btn.pack(side="right", padx=(4, 0))
-        add_tooltip(self.undo_btn,
-                    "Undo the last pad change (load, remove, swap, apply edit, clear "
-                    "bank, load preset ...).\nShortcut: Ctrl+Z")
+        add_tooltip(
+            self.undo_btn,
+            "Undo the last pad change (load, remove, swap, apply edit, clear "
+            "bank, load preset ...).\nShortcut: Ctrl+Z",
+        )
 
-        preset_btn = RoundedButton(top, text="Preset \u25be", command=self.open_preset_menu,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK,
-                                    width=90, height=30, font=(UI_FAMILY, 9, "bold"))
+        preset_btn = RoundedButton(
+            top,
+            text="Preset \u25be",
+            command=self.open_preset_menu,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+            height=30,
+            font=(UI_FAMILY, 9, "bold"),
+        )
         preset_btn.pack(side="right", padx=4)
         self.preset_btn = preset_btn
-        add_tooltip(preset_btn,
-                    "Save or load presets, or reopen a recent one. A preset stores the "
-                    "selected banks including their samples, so it stays usable even "
-                    "after the temp folder is cleared.")
+        add_tooltip(
+            preset_btn,
+            "Save or load presets, or reopen a recent one. A preset stores the "
+            "selected banks including their samples, so it stays usable even "
+            "after the temp folder is cleared.",
+        )
 
         self.pad_container = tk.Frame(root, padx=14, bg=BG_DARK)
         self.pad_container.pack(fill="x", pady=(6, 0))
@@ -197,9 +277,15 @@ class P6ManagerApp:
 
         storage_outer = tk.Frame(root, padx=14, bg=BG_DARK)
         storage_outer.pack(fill="x", side="top", pady=(6, 14))
-        self.storage_panel = RoundedPanel(storage_outer, title="Storage (loaded samples)",
-                                           parent_bg=BG_DARK, panel_bg=BG_PANEL,
-                                           border=BORDER_LIGHT, radius=14, title_fg=ACCENT_BLUE)
+        self.storage_panel = RoundedPanel(
+            storage_outer,
+            title="Storage (loaded samples)",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         self.storage_panel.pack(fill="x")
 
         storage_row = tk.Frame(self.storage_panel.body, bg=BG_PANEL)
@@ -233,17 +319,31 @@ class P6ManagerApp:
         ensure_dark_treeview_style()
         warn_frame = tk.Frame(hint_col, bg=BG_PANEL)
         warn_frame.pack(fill="both", expand=True, pady=(4, 0))
-        self.warn_scrollbar = RoundedScrollbar(warn_frame, orient="vertical",
-                                                parent_bg=BG_PANEL, auto_hide=False)
-        self.warn_spacer = tk.Frame(warn_frame, bg=BG_PANEL,
-                                     width=RoundedScrollbar.THICKNESS, height=1)
+        self.warn_scrollbar = RoundedScrollbar(
+            warn_frame, orient="vertical", parent_bg=BG_PANEL, auto_hide=False
+        )
+        self.warn_spacer = tk.Frame(
+            warn_frame, bg=BG_PANEL, width=RoundedScrollbar.THICKNESS, height=1
+        )
         self.warn_spacer.pack_propagate(False)
         self.warn_spacer.pack(side="right", fill="y", padx=(3, 0))
-        self.warnings_text = tk.Text(warn_frame, height=3, wrap="word", bg=BG_PANEL, fg=FG_TEXT,
-                                      relief="flat", bd=0, font=(UI_FAMILY, 8), highlightthickness=0,
-                                      yscrollcommand=self._autohide_warn_scrollbar,
-                                      state="disabled", cursor="arrow")
-        self.warnings_text.tag_configure("storage", foreground=ACCENT_RED, font=(UI_FAMILY, 9, "bold"))
+        self.warnings_text = tk.Text(
+            warn_frame,
+            height=3,
+            wrap="word",
+            bg=BG_PANEL,
+            fg=FG_TEXT,
+            relief="flat",
+            bd=0,
+            font=(UI_FAMILY, 8),
+            highlightthickness=0,
+            yscrollcommand=self._autohide_warn_scrollbar,
+            state="disabled",
+            cursor="arrow",
+        )
+        self.warnings_text.tag_configure(
+            "storage", foreground=ACCENT_RED, font=(UI_FAMILY, 9, "bold")
+        )
         self.warnings_text.tag_configure("padwarn", foreground=ACCENT_ORANGE, font=(UI_FAMILY, 8))
         self.warnings_text.pack(side="left", fill="both", expand=True)
         self.warn_scrollbar.command = self.warnings_text.yview
@@ -257,20 +357,28 @@ class P6ManagerApp:
         style_label(self.main_wave_name_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 9))
         self.main_wave_name_label.pack(side="left")
         self.main_wave_duration_label = tk.Label(wave_header, text="")
-        style_label(self.main_wave_duration_label, bg=BG_PANEL, fg=ACCENT_BLUE, font=(UI_FAMILY, 9, "bold"))
+        style_label(
+            self.main_wave_duration_label, bg=BG_PANEL, fg=ACCENT_BLUE, font=(UI_FAMILY, 9, "bold")
+        )
         self.main_wave_duration_label.pack(side="right")
 
         self.main_wave_width = 880
         self.main_wave_height = 99
-        self.main_wave_canvas = tk.Canvas(self.storage_panel.body, bg=WAVE_BG,
-                                           width=self.main_wave_width, height=self.main_wave_height,
-                                           highlightthickness=0)
+        self.main_wave_canvas = tk.Canvas(
+            self.storage_panel.body,
+            bg=WAVE_BG,
+            width=self.main_wave_width,
+            height=self.main_wave_height,
+            highlightthickness=0,
+        )
         self.main_wave_canvas.pack(fill="x", pady=(4, 0))
         self.main_wave_canvas.bind("<Configure>", self._render_main_waveform)
         self.main_wave_canvas.bind("<Button-1>", self._on_main_wave_click)
-        add_tooltip(self.main_wave_canvas,
-                    "Click to play from that point. On a wavetable the click jumps "
-                    "to the start of the zone you clicked in.")
+        add_tooltip(
+            self.main_wave_canvas,
+            "Click to play from that point. On a wavetable the click jumps "
+            "to the start of the zone you clicked in.",
+        )
         self.main_wave_data = None
         self.main_wave_data_stereo = None
         self.main_wave_fs = None
@@ -284,34 +392,70 @@ class P6ManagerApp:
 
         bottom = tk.Frame(root, padx=14, bg=BG_DARK)
         bottom.pack(fill="x", side="top", pady=(0, 14))
-        copy_all_btn = RoundedButton(bottom, text="Banks \u2192 P6", command=self.open_copy_banks_dialog,
-                                      bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=120)
+        copy_all_btn = RoundedButton(
+            bottom,
+            text="Banks \u2192 P6",
+            command=self.open_copy_banks_dialog,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=120,
+        )
         copy_all_btn.pack(side="left", padx=4)
-        add_tooltip(copy_all_btn,
-                    "Writes the banks you pick to the P-6: each pad's sample is converted "
-                    "to its rate/pitch/mono settings and copied to "
-                    "IMPORT/BANK_x/PAD_n/ on the device, replacing whatever was there.")
-        import_bank_btn = RoundedButton(bottom, text="P6 \u2192 Bank", command=self.open_import_bank_dialog,
-                                         bg=BTN_BLUE, fg="#FFFFFF", parent_bg=BG_DARK, width=120)
+        add_tooltip(
+            copy_all_btn,
+            "Writes the banks you pick to the P-6: each pad's sample is converted "
+            "to its rate/pitch/mono settings and copied to "
+            "IMPORT/BANK_x/PAD_n/ on the device, replacing whatever was there.",
+        )
+        import_bank_btn = RoundedButton(
+            bottom,
+            text="P6 \u2192 Bank",
+            command=self.open_import_bank_dialog,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=120,
+        )
         import_bank_btn.pack(side="left", padx=4)
-        add_tooltip(import_bank_btn,
-                    "The other direction: guides you through the P-6's own export "
-                    "procedure and loads the resulting EXPORT folder onto the currently "
-                    "active bank. Rate, pitch and mono come in at their defaults.")
-        clear_btn = RoundedButton(bottom, text="Bank Clear", command=self.open_clear_banks_dialog,
-                                   bg=BTN_ORANGE, fg="#FFFFFF", parent_bg=BG_DARK, width=110)
+        add_tooltip(
+            import_bank_btn,
+            "The other direction: guides you through the P-6's own export "
+            "procedure and loads the resulting EXPORT folder onto the currently "
+            "active bank. Rate, pitch and mono come in at their defaults.",
+        )
+        clear_btn = RoundedButton(
+            bottom,
+            text="Bank Clear",
+            command=self.open_clear_banks_dialog,
+            bg=BTN_ORANGE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=110,
+        )
         clear_btn.pack(side="left", padx=4)
-        add_tooltip(clear_btn,
-                    "Pick which banks to empty (the active one is preselected). Only the "
-                    "pads in the app are cleared - no files on disk or on the device are "
-                    "touched. Can be undone with Ctrl+Z.")
-        wipe_btn = RoundedButton(bottom, text="Wipe P6 IMPORT Folder", command=self.wipe_import_folder,
-                                  bg=BTN_RED, fg="#FFFFFF", parent_bg=BG_DARK, width=180)
+        add_tooltip(
+            clear_btn,
+            "Pick which banks to empty (the active one is preselected). Only the "
+            "pads in the app are cleared - no files on disk or on the device are "
+            "touched. Can be undone with Ctrl+Z.",
+        )
+        wipe_btn = RoundedButton(
+            bottom,
+            text="Wipe P6 IMPORT Folder",
+            command=self.wipe_import_folder,
+            bg=BTN_RED,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=180,
+        )
         wipe_btn.pack(side="left", padx=(28, 4))
-        add_tooltip(wipe_btn,
-                    "CAUTION: permanently deletes every sample file in the P-6 IMPORT "
-                    "folder, across all banks. Cannot be undone. Your pads in the app "
-                    "stay as they are - only the device-side copies are removed.")
+        add_tooltip(
+            wipe_btn,
+            "CAUTION: permanently deletes every sample file in the P-6 IMPORT "
+            "folder, across all banks. Cannot be undone. Your pads in the app "
+            "stay as they are - only the device-side copies are removed.",
+        )
 
         self.build_pad_slots(self.current_bank.get())
         self.prune_orphaned_wavetables()
@@ -339,8 +483,9 @@ class P6ManagerApp:
                 return
         try:
             self._logo_img = full_img.subsample(2, 2)  # ~half size
-            logo_label = tk.Label(self.root, image=self._logo_img, bg=BG_DARK,
-                                   bd=0, highlightthickness=0)
+            logo_label = tk.Label(
+                self.root, image=self._logo_img, bg=BG_DARK, bd=0, highlightthickness=0
+            )
             logo_label.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
         except Exception as e:
             print(f"Could not place the logo: {e}")
@@ -373,8 +518,9 @@ class P6ManagerApp:
         if hasattr(self, "path_label"):
             self.path_label.config(text=f"IMPORT Path: {self.import_root}")
 
-    def show_playback_waveform(self, samples, fs, name, max_seconds=None, source_path=None,
-                                zones=None, offset_frac=0.0):
+    def show_playback_waveform(
+        self, samples, fs, name, max_seconds=None, source_path=None, zones=None, offset_frac=0.0
+    ):
         if not hasattr(self, "main_wave_canvas"):
             return
         if samples is None or fs is None or len(samples) == 0:
@@ -395,14 +541,18 @@ class P6ManagerApp:
             count = len(zones["families"])
             self.main_wave_duration_label.config(
                 text=f"{count} zone{'' if count == 1 else 's'} \u00b7 "
-                     f"START 0-{sum(zones['counts']) - 1}")
+                f"START 0-{sum(zones['counts']) - 1}"
+            )
         self._render_main_waveform()
         self._start_main_playhead(offset_frac)
 
     def stop_and_refresh_waveform_for(self, filepath, max_seconds, pitch_cents=0):
         self.stop_playback_waveform()
-        if filepath and getattr(self, "main_wave_source_path", None) == filepath \
-                and hasattr(self, "main_wave_canvas"):
+        if (
+            filepath
+            and getattr(self, "main_wave_source_path", None) == filepath
+            and hasattr(self, "main_wave_canvas")
+        ):
             try:
                 orig_duration, _, _ = get_wav_info(filepath)
                 if pitch_cents:
@@ -424,17 +574,40 @@ class P6ManagerApp:
             return
         if getattr(self, "main_wave_data_stereo", None) is not None:
             half_h = self.main_wave_height / 2.0
-            draw_waveform_on_canvas(self.main_wave_canvas, self.main_wave_data_stereo[:, 0],
-                                     0.0, 1.0, width_px, half_h,
-                                     tag="waveform", y_offset=0, clear=True)
-            draw_waveform_on_canvas(self.main_wave_canvas, self.main_wave_data_stereo[:, 1],
-                                     0.0, 1.0, width_px, half_h,
-                                     tag="waveform", y_offset=half_h, clear=False)
-            self.main_wave_canvas.create_line(0, half_h, width_px, half_h,
-                                               fill=BORDER_COLOR, width=1, tags="waveform")
+            draw_waveform_on_canvas(
+                self.main_wave_canvas,
+                self.main_wave_data_stereo[:, 0],
+                0.0,
+                1.0,
+                width_px,
+                half_h,
+                tag="waveform",
+                y_offset=0,
+                clear=True,
+            )
+            draw_waveform_on_canvas(
+                self.main_wave_canvas,
+                self.main_wave_data_stereo[:, 1],
+                0.0,
+                1.0,
+                width_px,
+                half_h,
+                tag="waveform",
+                y_offset=half_h,
+                clear=False,
+            )
+            self.main_wave_canvas.create_line(
+                0, half_h, width_px, half_h, fill=BORDER_COLOR, width=1, tags="waveform"
+            )
         else:
-            draw_waveform_on_canvas(self.main_wave_canvas, self.main_wave_data, 0.0, 1.0,
-                                     width_px, self.main_wave_height)
+            draw_waveform_on_canvas(
+                self.main_wave_canvas,
+                self.main_wave_data,
+                0.0,
+                1.0,
+                width_px,
+                self.main_wave_height,
+            )
         self._redraw_main_truncate()
 
     @staticmethod
@@ -449,6 +622,7 @@ class P6ManagerApp:
 
     def _render_wavetable_zones(self, width_px):
         import tkinter.font as tkfont
+
         c = self.main_wave_canvas
         zones = self.main_wave_zones
         families, counts = zones["families"], zones["counts"]
@@ -460,7 +634,6 @@ class P6ManagerApp:
         stripe = blend_colors(WAVE_BG, WAVE_COLOR, 0.12)
 
         name_font = tkfont.Font(family=UI_FAMILY, size=8)
-        num_font = tkfont.Font(family=UI_FAMILY, size=7)
 
         widths = [cnt / total * width_px for cnt in counts]
         needed = max(name_font.measure(n) for n in families) + 6
@@ -471,8 +644,7 @@ class P6ManagerApp:
         for i, (name, cnt) in enumerate(zip(families, counts)):
             x2 = x + widths[i]
             if i % 2 == 0:
-                c.create_rectangle(x, top, x2, bot, fill=stripe, outline="",
-                                    tags="waveform")
+                c.create_rectangle(x, top, x2, bot, fill=stripe, outline="", tags="waveform")
             if i:
                 c.create_line(x, top, x, bot, fill=BORDER_COLOR, tags="waveform")
 
@@ -482,17 +654,28 @@ class P6ManagerApp:
                 y_name = (top + bot) / 2 - 7
             avail = widths[i] * (2.0 if stagger else 1.0) - 6
             cx = (x + x2) / 2
-            c.create_text(cx, y_name, text=self._ellipsize(name_font, name, avail),
-                           anchor="n", fill=text_col, font=(UI_FAMILY, 8),
-                           tags="waveform")
-            c.create_text(cx, y_name + 13, text=f"{pos}\u2013{pos + cnt - 1}",
-                           anchor="n", fill=text_col, font=(UI_FAMILY, 7),
-                           tags="waveform")
+            c.create_text(
+                cx,
+                y_name,
+                text=self._ellipsize(name_font, name, avail),
+                anchor="n",
+                fill=text_col,
+                font=(UI_FAMILY, 8),
+                tags="waveform",
+            )
+            c.create_text(
+                cx,
+                y_name + 13,
+                text=f"{pos}\u2013{pos + cnt - 1}",
+                anchor="n",
+                fill=text_col,
+                font=(UI_FAMILY, 7),
+                tags="waveform",
+            )
             pos += cnt
             x = x2
 
-        c.create_rectangle(0, top, width_px, bot, outline=BORDER_COLOR,
-                            tags="waveform")
+        c.create_rectangle(0, top, width_px, bot, outline=BORDER_COLOR, tags="waveform")
 
     def _redraw_main_truncate(self):
         self.main_wave_canvas.delete("truncate")
@@ -501,17 +684,19 @@ class P6ManagerApp:
         limit = self.main_wave_max_seconds
         if limit and duration > limit > 0:
             x_cut = (limit / duration) * width_px
-            draw_truncate_overlay(self.main_wave_canvas, x_cut, width_px,
-                                   self.main_wave_height)
+            draw_truncate_overlay(self.main_wave_canvas, x_cut, width_px, self.main_wave_height)
             self.main_wave_duration_label.config(
-                text=f"Length: {duration:.2f}s   (max {limit:.2f}s)", fg=ACCENT_ORANGE)
+                text=f"Length: {duration:.2f}s   (max {limit:.2f}s)", fg=ACCENT_ORANGE
+            )
         else:
             self.main_wave_duration_label.config(text=f"Length: {duration:.2f}s", fg=ACCENT_BLUE)
 
     def _refresh_playing_pad_button(self):
         if not hasattr(self, "pad_widgets"):
             return
-        playing_pad = self._currently_playing_pad if getattr(self, "main_wave_is_playing", False) else None
+        playing_pad = (
+            self._currently_playing_pad if getattr(self, "main_wave_is_playing", False) else None
+        )
         for pad, slot in self.pad_widgets.items():
             slot.set_play_button_state(pad == playing_pad)
 
@@ -548,7 +733,8 @@ class P6ManagerApp:
         self.main_wave_name_label.config(text=name)
         count = len(zones["families"])
         self.main_wave_duration_label.config(
-            text=f"{count} zone{'' if count == 1 else 's'} / {sum(zones['counts'])} segments")
+            text=f"{count} zone{'' if count == 1 else 's'} / {sum(zones['counts'])} segments"
+        )
         self.set_active_pad(pad)
         self._render_main_waveform()
 
@@ -586,8 +772,7 @@ class P6ManagerApp:
         self._main_wave_play_id += 1
         my_id = self._main_wave_play_id
         self.main_wave_is_playing = True
-        self.main_wave_play_start_time = (time.time()
-                                          - offset_frac * self.main_wave_duration)
+        self.main_wave_play_start_time = time.time() - offset_frac * self.main_wave_duration
         self._refresh_playing_pad_button()
         self._update_main_playhead(my_id)
 
@@ -601,8 +786,9 @@ class P6ManagerApp:
         x = frac * width_px
         self.main_wave_canvas.delete("playhead")
         if frac < 1.0:
-            self.main_wave_canvas.create_line(x, 0, x, self.main_wave_height,
-                                               fill=ACCENT_BLUE, width=2, tags="playhead")
+            self.main_wave_canvas.create_line(
+                x, 0, x, self.main_wave_height, fill=ACCENT_BLUE, width=2, tags="playhead"
+            )
             self.root.after(30, lambda: self._update_main_playhead(play_id))
         else:
             self.main_wave_is_playing = False
@@ -610,26 +796,40 @@ class P6ManagerApp:
 
     def open_settings(self):
         from pyp6.ui.dialogs.settings import SettingsDialog
+
         dialog = SettingsDialog(self.root, self)
         self.root.wait_window(dialog)
 
     def open_preset_menu(self):
-        menu = tk.Menu(self.root, tearoff=0, bg=BG_PANEL, fg=FG_TEXT,
-                        activebackground=ACCENT_BLUE, activeforeground="#FFFFFF",
-                        font=(UI_FAMILY, 9))
+        menu = tk.Menu(
+            self.root,
+            tearoff=0,
+            bg=BG_PANEL,
+            fg=FG_TEXT,
+            activebackground=ACCENT_BLUE,
+            activeforeground="#FFFFFF",
+            font=(UI_FAMILY, 9),
+        )
         menu.add_command(label="Save Preset...", command=self.open_save_preset_dialog)
         menu.add_command(label="Load Preset...", command=self.open_load_preset_dialog)
 
         recents = [p for p in load_recent_presets() if is_preset_folder(p)]
         if recents:
             menu.add_separator()
-            recent_menu = tk.Menu(menu, tearoff=0, bg=BG_PANEL, fg=FG_TEXT,
-                                   activebackground=ACCENT_BLUE, activeforeground="#FFFFFF",
-                                   font=(UI_FAMILY, 9))
+            recent_menu = tk.Menu(
+                menu,
+                tearoff=0,
+                bg=BG_PANEL,
+                fg=FG_TEXT,
+                activebackground=ACCENT_BLUE,
+                activeforeground="#FFFFFF",
+                font=(UI_FAMILY, 9),
+            )
             for path in recents:
                 name = os.path.basename(path.rstrip(os.sep)) or path
                 recent_menu.add_command(
-                    label=name, command=lambda p=path: self.open_load_preset_dialog(preselect=p))
+                    label=name, command=lambda p=path: self.open_load_preset_dialog(preselect=p)
+                )
             menu.add_cascade(label="Recent", menu=recent_menu)
 
         x = self.preset_btn.winfo_rootx()
@@ -639,8 +839,12 @@ class P6ManagerApp:
 
     def open_save_preset_dialog(self):
         from pyp6.ui.dialogs.preset import PresetSaveDialog
-        initial_dir = os.path.dirname(load_recent_presets()[0]) if load_recent_presets() \
+
+        initial_dir = (
+            os.path.dirname(load_recent_presets()[0])
+            if load_recent_presets()
             else os.path.expanduser("~")
+        )
         dialog = PresetSaveDialog(self.root, self, initial_dir=initial_dir)
         self.root.wait_window(dialog)
         if dialog.result_dir:
@@ -648,14 +852,26 @@ class P6ManagerApp:
 
     def open_load_preset_dialog(self, preselect=None):
         from pyp6.ui.dialogs.preset import PresetLoadDialog
-        initial_dir = os.path.dirname(preselect) if preselect else (
-            os.path.dirname(load_recent_presets()[0]) if load_recent_presets()
-            else os.path.expanduser("~"))
-        dialog = PresetLoadDialog(self.root, self, initial_dir=initial_dir, preselect_path=preselect)
+
+        initial_dir = (
+            os.path.dirname(preselect)
+            if preselect
+            else (
+                os.path.dirname(load_recent_presets()[0])
+                if load_recent_presets()
+                else os.path.expanduser("~")
+            )
+        )
+        dialog = PresetLoadDialog(
+            self.root, self, initial_dir=initial_dir, preselect_path=preselect
+        )
         self.root.wait_window(dialog)
         if dialog.result_dir and dialog.result_banks:
-            self.load_preset_from_folder(dialog.result_dir, dialog.result_banks,
-                                          target_bank_override=dialog.result_target_override)
+            self.load_preset_from_folder(
+                dialog.result_dir,
+                dialog.result_banks,
+                target_bank_override=dialog.result_target_override,
+            )
 
     def show_progress(self, message):
         if self._status_clear_job:
@@ -752,8 +968,10 @@ class P6ManagerApp:
         if self._dnd_registered:
             self._dnd_targets_ready = True
         else:
-            print("Drag & drop: no drop target could be registered - "
-                  "dropping files onto pads will not work this session.")
+            print(
+                "Drag & drop: no drop target could be registered - "
+                "dropping files onto pads will not work this session."
+            )
 
     def _on_pad_drag_position(self, event):
         if not getattr(self, "_dnd_position_seen", False):
@@ -786,9 +1004,11 @@ class P6ManagerApp:
             pad = getattr(self, "_last_dnd_hover_pad", None)
         self._last_dnd_hover_pad = None
         if pad is None:
-            dark_showwarning("Drop Not Recognized",
-                             "Couldn't tell which pad that was dropped on - try dropping "
-                             "more toward the center of a pad.")
+            dark_showwarning(
+                "Drop Not Recognized",
+                "Couldn't tell which pad that was dropped on - try dropping "
+                "more toward the center of a pad.",
+            )
             return "break"
         try:
             paths = self.root.tk.splitlist(event.data)
@@ -796,8 +1016,9 @@ class P6ManagerApp:
             paths = [event.data]
         audio_paths = [p for p in paths if p.lower().endswith((".wav", ".mp3"))]
         if not audio_paths:
-            dark_showwarning("No Audio Files",
-                             "The dropped item(s) don't look like .wav or .mp3 files.")
+            dark_showwarning(
+                "No Audio Files", "The dropped item(s) don't look like .wav or .mp3 files."
+            )
             return "break"
 
         self.stop_playback_waveform()
@@ -949,7 +1170,8 @@ class P6ManagerApp:
         dark_showwarning(
             "Preset Incomplete",
             f"{when}\n\n{lines}\n\nA preset folder is meant to be handed to "
-            "someone else, so anything listed here would break it for them.")
+            "someone else, so anything listed here would break it for them.",
+        )
         return False
 
     def save_preset_to_folder(self, target_dir, name, banks_to_save):
@@ -996,17 +1218,17 @@ class P6ManagerApp:
                     dst_size = os.path.getsize(dest)
                     src_size = os.path.getsize(src)
                     if dst_size != src_size:
-                        raise IOError(f"copied {dst_size} of {src_size} bytes")
+                        raise OSError(f"copied {dst_size} of {src_size} bytes")
                     if dest.lower().endswith(".wav"):
                         with contextlib.closing(wave.open(dest, "r")) as _wf:
                             if _wf.getnframes() == 0:
-                                raise IOError("copy contains no audio frames")
+                                raise OSError("copy contains no audio frames")
                 except Exception as e:
                     detail = f"{type(e).__name__}: {e or 'file is empty or truncated'}"
-                    print(f"Could not copy sample for BANK_{bank}/PAD_{pad}: "
-                          f"{detail}  ({src})")
-                    copy_failures.append(f"BANK_{bank}/PAD_{pad}: "
-                                         f"{os.path.basename(src)} - {detail}")
+                    print(f"Could not copy sample for BANK_{bank}/PAD_{pad}: {detail}  ({src})")
+                    copy_failures.append(
+                        f"BANK_{bank}/PAD_{pad}: {os.path.basename(src)} - {detail}"
+                    )
                     pad_entries[str(pad)] = None
                     continue
                 prm_src = self._find_prm_for(src)
@@ -1014,8 +1236,7 @@ class P6ManagerApp:
                     try:
                         shutil.copy2(prm_src, os.path.splitext(dest)[0] + ".PRM")
                     except Exception as e:
-                        print(f"Could not copy settings file for "
-                              f"BANK_{bank}/PAD_{pad}: {e}")
+                        print(f"Could not copy settings file for BANK_{bank}/PAD_{pad}: {e}")
                 rel_path = f"BANK_{bank}/" + os.path.relpath(dest, staging_dir).replace(os.sep, "/")
                 pad_entries[str(pad)] = {
                     "filepath": rel_path,
@@ -1055,12 +1276,14 @@ class P6ManagerApp:
                 f"The banks you just saved are now version {PRESET_FORMAT_VERSION}, "
                 f"but {', '.join('BANK_' + b for b in carried)} still hold what the "
                 "earlier save left behind.\n\nRe-save those banks too if you want "
-                "the whole folder consistent.")
+                "the whole folder consistent.",
+            )
         if copy_failures:
             dark_showwarning(
                 "Samples Not Saved",
                 "These pads could not be copied into the preset and were left "
-                "empty:\n\n" + "\n".join(f"\u2022 {f}" for f in copy_failures[:10]))
+                "empty:\n\n" + "\n".join(f"\u2022 {f}" for f in copy_failures[:10]),
+            )
         self._report_preset_check(preset_dir, "This preset was saved, but:")
         return preset_dir
 
@@ -1075,11 +1298,12 @@ class P6ManagerApp:
             preset_version = 1
         if preset_version > PRESET_FORMAT_VERSION:
             if not dark_askyesno(
-                    "Newer Preset Format",
-                    f"This preset was written in format version {preset_version}, "
-                    f"but this version of {APP_NAME} understands up to "
-                    f"{PRESET_FORMAT_VERSION}.\n\nAnything it does not recognise "
-                    "will be ignored. Load it anyway?"):
+                "Newer Preset Format",
+                f"This preset was written in format version {preset_version}, "
+                f"but this version of {APP_NAME} understands up to "
+                f"{PRESET_FORMAT_VERSION}.\n\nAnything it does not recognise "
+                "will be ignored. Load it anyway?",
+            ):
                 return False
         self._report_preset_check(preset_dir, "Loading this preset anyway, but:")
         self._push_undo()
@@ -1102,7 +1326,11 @@ class P6ManagerApp:
                     new_slot[pad] = None
                     continue
                 rel_path = entry.get("filepath", "")
-                abs_path = os.path.normpath(os.path.join(preset_dir, *rel_path.split("/"))) if rel_path else ""
+                abs_path = (
+                    os.path.normpath(os.path.join(preset_dir, *rel_path.split("/")))
+                    if rel_path
+                    else ""
+                )
                 if not rel_path or not os.path.exists(abs_path):
                     missing_samples.append(f"BANK_{target_bank}/PAD_{pad} (from BANK_{bank})")
                     new_slot[pad] = None
@@ -1130,15 +1358,18 @@ class P6ManagerApp:
             dark_showwarning(
                 "Some Samples Missing",
                 "The following pads reference sample files that could not be found:\n\n"
-                + "\n".join(missing_samples)
+                + "\n".join(missing_samples),
             )
         return True
 
     def choose_import_folder(self, parent_window=None):
         from pyp6.ui.dialogs.file import FolderPickerDialog
+
         parent_window = parent_window or self.root
         initial = self.import_root if os.path.isdir(self.import_root) else os.path.expanduser("~")
-        picker = FolderPickerDialog(parent_window, initial_dir=initial, title="Select P-6 IMPORT Folder")
+        picker = FolderPickerDialog(
+            parent_window, initial_dir=initial, title="Select P-6 IMPORT Folder"
+        )
         parent_window.wait_window(picker)
         new_path = picker.selected_dir
         if new_path:
@@ -1176,8 +1407,9 @@ class P6ManagerApp:
             if not state or not state.get("filepath"):
                 continue
             pad_mono = global_force or state.get("mono", False)
-            msg = check_duration_warning(state["filepath"], state.get("target_rate"),
-                                          state.get("pitch_cents", 0), pad_mono)
+            msg = check_duration_warning(
+                state["filepath"], state.get("target_rate"), state.get("pitch_cents", 0), pad_mono
+            )
             if msg:
                 messages.append(f"PAD_{pad}: {msg}")
         self._pad_warnings_text = "\n".join(messages)
@@ -1192,19 +1424,17 @@ class P6ManagerApp:
             return
         if needed:
             self.warn_spacer.pack_forget()
-            self.warn_scrollbar.pack(side="right", fill="y", padx=(3, 0),
-                                      before=self.warnings_text)
+            self.warn_scrollbar.pack(side="right", fill="y", padx=(3, 0), before=self.warnings_text)
         else:
             self.warn_scrollbar.pack_forget()
-            self.warn_spacer.pack(side="right", fill="y", padx=(3, 0),
-                                   before=self.warnings_text)
+            self.warn_spacer.pack(side="right", fill="y", padx=(3, 0), before=self.warnings_text)
 
     def _warn_display_lines(self):
         try:
             res = self.warnings_text.count("1.0", "end", "displaylines")
         except tk.TclError:
             return 0
-        if isinstance(res, (list, tuple)):
+        if isinstance(res, list | tuple):
             res = res[0] if res else 0
         try:
             return int(res or 0)
@@ -1276,7 +1506,12 @@ class P6ManagerApp:
         orig_sample_width = get_wav_sample_width(filepath) or 2
         needs_mono = force_mono and channels > 1
         needs_bit_depth_fix = orig_sample_width != 2
-        if target_rate == orig_rate and not pitch_cents and not needs_mono and not needs_bit_depth_fix:
+        if (
+            target_rate == orig_rate
+            and not pitch_cents
+            and not needs_mono
+            and not needs_bit_depth_fix
+        ):
             try:
                 return os.path.getsize(filepath)
             except OSError:
@@ -1328,8 +1563,12 @@ class P6ManagerApp:
         bank_over = bank_bytes > MAX_UPLOAD_BYTES
         total_over = total_bytes > MAX_UPLOAD_BYTES
 
-        self.bank_size_label.config(text=f"{bank_mb:.2f} MB", fg=ACCENT_RED if bank_over else FG_TEXT)
-        self.total_size_label.config(text=f"{total_mb:.2f} MB", fg=ACCENT_RED if total_over else FG_TEXT)
+        self.bank_size_label.config(
+            text=f"{bank_mb:.2f} MB", fg=ACCENT_RED if bank_over else FG_TEXT
+        )
+        self.total_size_label.config(
+            text=f"{total_mb:.2f} MB", fg=ACCENT_RED if total_over else FG_TEXT
+        )
 
         if bank_over or total_over:
             self._storage_hint_text = f"Max. total file size per upload is {limit_mb:.0f} MB"
@@ -1392,8 +1631,11 @@ class P6ManagerApp:
                 try:
                     pad_mono = self.bank_force_mono(bank) or state.get("mono", False)
                     export_path = compute_export_ready_path(
-                        filepath, state.get("target_rate") or 44100,
-                        state.get("pitch_cents", 0), pad_mono)
+                        filepath,
+                        state.get("target_rate") or 44100,
+                        state.get("pitch_cents", 0),
+                        pad_mono,
+                    )
                 except Exception:
                     export_path = filepath
 
@@ -1404,16 +1646,22 @@ class P6ManagerApp:
                 try:
                     wt_meta = wt_state["meta"]
                     prm_text = render_prm(
-                        bank, pad, 0, wt_meta["L"], wt_meta["total_frames"],
-                        template=(state.get("wt_patch") if state.get("wt_patch")
-                                  in PRM_TEMPLATES else "Init"),
-                        poly=state.get("wt_poly", False))
+                        bank,
+                        pad,
+                        0,
+                        wt_meta["L"],
+                        wt_meta["total_frames"],
+                        template=(
+                            state.get("wt_patch")
+                            if state.get("wt_patch") in PRM_TEMPLATES
+                            else "Init"
+                        ),
+                        poly=state.get("wt_poly", False),
+                    )
                 except Exception as e:
                     print(f"PAD_{pad}: could not build wavetable settings: {e}")
-            prm_src = (self._find_prm_for(filepath)
-                       if include_prm and not prm_text else None)
-            prm_dest = (os.path.splitext(dest)[0] + ".PRM"
-                        if (prm_src or prm_text) else None)
+            prm_src = self._find_prm_for(filepath) if include_prm and not prm_text else None
+            prm_dest = os.path.splitext(dest)[0] + ".PRM" if (prm_src or prm_text) else None
 
             try:
                 keep = {os.path.abspath(export_path)}
@@ -1434,9 +1682,10 @@ class P6ManagerApp:
                     with open(prm_dest, "w", newline="") as f:
                         f.write(prm_text)
                 except Exception as e:
-                    dark_showerror("Copy Error",
-                                   f"PAD_{pad}: the wavetable settings file could "
-                                   f"not be written:\n{e}")
+                    dark_showerror(
+                        "Copy Error",
+                        f"PAD_{pad}: the wavetable settings file could not be written:\n{e}",
+                    )
             elif prm_src:
                 try:
                     if os.path.abspath(prm_src) != os.path.abspath(prm_dest):
@@ -1453,8 +1702,10 @@ class P6ManagerApp:
                 src_size = os.path.getsize(export_path)
                 dst_size = os.path.getsize(dest)
                 if dst_size != src_size:
-                    raise IOError(f"copied {dst_size} of {src_size} bytes - "
-                                  f"the target may be full or disconnected")
+                    raise OSError(
+                        f"copied {dst_size} of {src_size} bytes - "
+                        f"the target may be full or disconnected"
+                    )
                 copied += 1
             except Exception as e:
                 detail = f"{type(e).__name__}: {e}" if not str(e) else str(e)
@@ -1472,26 +1723,42 @@ class P6ManagerApp:
         if bank != self.current_bank.get():
             return False
 
-        submenu = tk.Menu(menu, tearoff=0, bg=BG_INPUT, fg=FG_TEXT,
-                           activebackground=ACCENT_BLUE, activeforeground="#00131A",
-                           bd=0, relief="flat")
+        submenu = tk.Menu(
+            menu,
+            tearoff=0,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            activebackground=ACCENT_BLUE,
+            activeforeground="#00131A",
+            bd=0,
+            relief="flat",
+        )
         for action, label in (("copy", "Copy To"), ("move", "Move To")):
-            target_menu = tk.Menu(submenu, tearoff=0, bg=BG_INPUT, fg=FG_TEXT,
-                                   activebackground=ACCENT_BLUE, activeforeground="#00131A",
-                                   bd=0, relief="flat")
+            target_menu = tk.Menu(
+                submenu,
+                tearoff=0,
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                activebackground=ACCENT_BLUE,
+                activeforeground="#00131A",
+                bd=0,
+                relief="flat",
+            )
             for target in BANKS:
                 if target == bank:
                     continue
                 suffix = "  (has samples)" if self.bank_has_samples(target) else ""
                 target_menu.add_command(
                     label=f"Bank {target}{suffix}",
-                    command=lambda t=target, a=action: self.transfer_bank(a, t))
+                    command=lambda t=target, a=action: self.transfer_bank(a, t),
+                )
             submenu.add_cascade(label=label, menu=target_menu)
         menu.add_cascade(label=f"{bank}  \u2013  current", menu=submenu, **kwargs)
         return True
 
     def _duplicate_wavetable_for(self, state):
         from pyp6.config import wavetable_path
+
         src = state.get("filepath")
         if not src or not os.path.isfile(src):
             return state
@@ -1509,21 +1776,26 @@ class P6ManagerApp:
             return
         self._save_active_bank_state()
         if not self.bank_has_samples(source):
-            dark_showwarning("Empty Bank",
-                             f"Bank {source} has no samples to {action}.", parent=self.root)
+            dark_showwarning(
+                "Empty Bank", f"Bank {source} has no samples to {action}.", parent=self.root
+            )
             return
 
         if self.bank_has_samples(target):
             if not dark_askyesno(
-                    f"Overwrite Bank {target}?",
-                    f"Bank {target} already contains samples. They will be replaced by "
-                    f"bank {source}.\n\nContinue?", parent=self.root):
+                f"Overwrite Bank {target}?",
+                f"Bank {target} already contains samples. They will be replaced by "
+                f"bank {source}.\n\nContinue?",
+                parent=self.root,
+            ):
                 return
         elif action == "move":
             if not dark_askyesno(
-                    f"Move Bank {source} to {target}?",
-                    f"Bank {source} will be emptied and its samples moved to bank "
-                    f"{target}.\n\nContinue?", parent=self.root):
+                f"Move Bank {source} to {target}?",
+                f"Bank {source} will be emptied and its samples moved to bank "
+                f"{target}.\n\nContinue?",
+                parent=self.root,
+            ):
                 return
 
         self._push_undo()
@@ -1546,11 +1818,13 @@ class P6ManagerApp:
         self.build_pad_slots(self.current_bank.get())
         self.update_storage_display()
         self.update_pad_warnings()
-        self.show_status(f"Bank {source} {'moved' if action == 'move' else 'copied'} "
-                         f"to bank {target}.")
+        self.show_status(
+            f"Bank {source} {'moved' if action == 'move' else 'copied'} to bank {target}."
+        )
 
     def open_clear_banks_dialog(self):
         from pyp6.ui.dialogs.bank import ClearBanksDialog
+
         self._save_active_bank_state()
         dialog = ClearBanksDialog(self.root, self)
         self.root.wait_window(dialog)
@@ -1603,7 +1877,7 @@ class P6ManagerApp:
             "This permanently removes them from the device and cannot be undone.",
             "",
             "(Your pad assignments in the app itself are not affected - only files "
-            "already copied to the device. You can re-export with \"Banks \u2192 P6\" "
+            'already copied to the device. You can re-export with "Banks \u2192 P6" '
             "afterward if needed.)",
         ]
         if not dark_askyesno("Confirm Wipe IMPORT Folder", chr(10).join(warning_lines)):
@@ -1635,9 +1909,13 @@ class P6ManagerApp:
             self._set_busy(False)
 
         if errors:
-            dark_showerror("Partial Errors", "Some files could not be deleted:\n" + chr(10).join(errors))
+            dark_showerror(
+                "Partial Errors", "Some files could not be deleted:\n" + chr(10).join(errors)
+            )
         else:
-            self.show_status(f"{deleted_count} file(s) permanently removed from the device across all banks.")
+            self.show_status(
+                f"{deleted_count} file(s) permanently removed from the device across all banks."
+            )
 
     def _set_busy(self, busy):
         try:
@@ -1658,17 +1936,18 @@ class P6ManagerApp:
         details = "\n".join(f"  Bank {b}: {mb:.2f} MB" for b, mb in over)
         return dark_askyesno(
             "Storage Limit Exceeded",
-            f"The following exceed the {limit_mb:.0f} MB limit:\n\n{details}\n\n"
-            "Copy anyway?"
+            f"The following exceed the {limit_mb:.0f} MB limit:\n\n{details}\n\nCopy anyway?",
         )
 
     def open_import_bank_dialog(self):
         from pyp6.ui.dialogs.bank import ImportBankDialog
+
         self._save_active_bank_state()
         ImportBankDialog(self.root, self)
 
     def open_copy_banks_dialog(self):
         from pyp6.ui.dialogs.bank import CopyBanksDialog
+
         self._save_active_bank_state()
         dialog = CopyBanksDialog(self.root, self)
         self.root.wait_window(dialog)
@@ -1688,7 +1967,8 @@ class P6ManagerApp:
                 f"Bank(s) {', '.join(prm_banks)} still have the P-6's own .PRM settings "
                 "files for some pads.\n\nCopy them to the device along with the samples?\n\n"
                 "Yes: the pads keep the settings they had on the P-6.\n"
-                "No: only the audio is copied, and the device applies its defaults.")
+                "No: only the audio is copied, and the device applies its defaults.",
+            )
 
         total_c, total_s = 0, 0
         self._set_busy(True)
@@ -1701,4 +1981,6 @@ class P6ManagerApp:
         finally:
             self._set_busy(False)
         bank_word = "bank" if len(banks) == 1 else "banks"
-        self.show_status(f"{len(banks)} {bank_word} ({', '.join(banks)}): {total_c} copied, {total_s} empty.")
+        self.show_status(
+            f"{len(banks)} {bank_word} ({', '.join(banks)}): {total_c} copied, {total_s} empty."
+        )

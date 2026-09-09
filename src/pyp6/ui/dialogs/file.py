@@ -13,19 +13,30 @@
 import os
 import tkinter as tk
 
-from pyp6.constants import UI_FAMILY, PREVIEW_MIN_W, PREVIEW_MIN_H
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_ORANGE, BORDER_COLOR, BORDER_LIGHT,
-    BTN_BLUE, BTN_GREEN,
+    ACCENT_BLUE,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
+    BORDER_COLOR,
+    BTN_GREEN,
+    FG_MUTED,
+    FG_TEXT,
 )
-from pyp6.ui.widgets import RoundedButton, RoundedPanel, RoundedScrollbar
+from pyp6.constants import PREVIEW_MIN_H, PREVIEW_MIN_W, UI_FAMILY
 from pyp6.ui.dialogs_common import (
-    style_toplevel, style_label, style_listbox, add_focus_border,
-    center_toplevel_on_parent, dark_showwarning, dark_showerror, dark_askyesno,
+    add_focus_border,
+    center_toplevel_on_parent,
     dark_ask_text,
+    dark_askyesno,
+    dark_showerror,
+    dark_showwarning,
+    style_label,
+    style_listbox,
+    style_toplevel,
 )
 from pyp6.ui.nav_mixin import FolderNavMixin
+from pyp6.ui.widgets import RoundedButton, RoundedPanel, RoundedScrollbar
 
 
 class FolderPickerDialog(FolderNavMixin, tk.Toplevel):
@@ -38,14 +49,22 @@ class FolderPickerDialog(FolderNavMixin, tk.Toplevel):
         self.minsize(PREVIEW_MIN_W, PREVIEW_MIN_H)
         style_toplevel(self)
         self.selected_dir = None
-        self.current_dir = initial_dir if initial_dir and os.path.isdir(initial_dir) else os.path.expanduser("~")
+        self.current_dir = (
+            initial_dir if initial_dir and os.path.isdir(initial_dir) else os.path.expanduser("~")
+        )
 
         self._build_nav_bar(container_bg=BG_DARK)
 
-        list_panel = RoundedPanel(self, title="Folders", parent_bg=BG_DARK,
-                                  panel_bg=BG_PANEL, radius=12,
-                                  title_font=(UI_FAMILY, 9, "bold"),
-                                  body_padx=10, body_pady=(24, 8))
+        list_panel = RoundedPanel(
+            self,
+            title="Folders",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         list_panel.pack(fill="both", expand=True, padx=10, pady=(0, 6))
         list_frame = tk.Frame(list_panel.body, bg=BG_PANEL)
         list_frame.pack(fill="both", expand=True)
@@ -60,19 +79,35 @@ class FolderPickerDialog(FolderNavMixin, tk.Toplevel):
         self.listbox.bind("<Return>", self.on_navigate)
         self.listbox.bind("<BackSpace>", lambda e: self.go_up())
 
-        hint = tk.Label(self, text="Double-click/Enter: open folder  \u2022  \u2191 Up or Backspace: go up  "
-                                    "\u2022  Type/paste a path above + Enter",
-                         anchor="w")
+        hint = tk.Label(
+            self,
+            text="Double-click/Enter: open folder  \u2022  \u2191 Up or Backspace: go up  "
+            "\u2022  Type/paste a path above + Enter",
+            anchor="w",
+        )
         style_label(hint, fg=FG_MUTED, font=(UI_FAMILY, 8))
         hint.pack(fill="x", padx=10)
 
         btn_row = tk.Frame(self, padx=10, pady=10, bg=BG_DARK)
         btn_row.pack(fill="x")
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self.on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK)
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self.on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+        )
         cancel_btn.pack(side="right", padx=4)
-        select_btn = RoundedButton(btn_row, text="Select This Folder", command=self.on_confirm,
-                                    bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=170)
+        select_btn = RoundedButton(
+            btn_row,
+            text="Select This Folder",
+            command=self.on_confirm,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=170,
+        )
         select_btn.pack(side="right", padx=4)
 
         self.refresh_list()
@@ -100,7 +135,8 @@ class FolderPickerDialog(FolderNavMixin, tk.Toplevel):
         self._update_path_entry()
         try:
             entries = sorted(
-                e for e in os.listdir(self.current_dir)
+                e
+                for e in os.listdir(self.current_dir)
                 if os.path.isdir(os.path.join(self.current_dir, e))
             )
         except Exception as e:
@@ -132,8 +168,14 @@ class FolderPickerDialog(FolderNavMixin, tk.Toplevel):
 class FileSaveDialog(FolderNavMixin, tk.Toplevel):
     """Dark-themed replacement for filedialog.asksaveasfilename()."""
 
-    def __init__(self, parent, title="Save File", initial_dir=None,
-                 initial_file="untitled.csv", extension=".csv"):
+    def __init__(
+        self,
+        parent,
+        title="Save File",
+        initial_dir=None,
+        initial_file="untitled.csv",
+        extension=".csv",
+    ):
         super().__init__(parent)
         self.title(title)
         self.geometry(f"580x{520 + 32}")
@@ -141,30 +183,43 @@ class FileSaveDialog(FolderNavMixin, tk.Toplevel):
         style_toplevel(self)
         self.extension = extension
         self.result_path = None
-        self.current_dir = (initial_dir if initial_dir and os.path.isdir(initial_dir)
-                            else os.path.expanduser("~"))
+        self.current_dir = (
+            initial_dir if initial_dir and os.path.isdir(initial_dir) else os.path.expanduser("~")
+        )
 
         self._build_nav_bar(container_bg=BG_DARK)
 
         toolbar = tk.Frame(self, padx=10, bg=BG_DARK)
         toolbar.pack(fill="x")
-        new_folder_btn = RoundedButton(toolbar, text="+ New Folder",
-                                        command=self.on_new_folder, bg=BG_INPUT,
-                                        fg=FG_TEXT, parent_bg=BG_DARK, width=110,
-                                        height=26, font=(UI_FAMILY, 8))
+        new_folder_btn = RoundedButton(
+            toolbar,
+            text="+ New Folder",
+            command=self.on_new_folder,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=110,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
         new_folder_btn.pack(side="left")
 
-        list_panel = RoundedPanel(self, title="Folders & Files", parent_bg=BG_DARK,
-                                  panel_bg=BG_PANEL, radius=12,
-                                  title_font=(UI_FAMILY, 9, "bold"),
-                                  body_padx=10, body_pady=(24, 8))
+        list_panel = RoundedPanel(
+            self,
+            title="Folders & Files",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
         list_panel.pack(fill="both", expand=True, padx=10, pady=(0, 6))
         list_frame = tk.Frame(list_panel.body, bg=BG_PANEL)
         list_frame.pack(fill="both", expand=True)
         scrollbar = RoundedScrollbar(list_frame, orient="vertical", parent_bg=BG_PANEL)
         scrollbar.pack(side="right", fill="y", padx=(3, 0))
-        self.listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set,
-                                   font=(UI_FAMILY, 10))
+        self.listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=(UI_FAMILY, 10))
         style_listbox(self.listbox)
         self.listbox.pack(side="left", fill="both", expand=True)
         add_focus_border(self.listbox, list_frame)
@@ -173,9 +228,12 @@ class FileSaveDialog(FolderNavMixin, tk.Toplevel):
         self.listbox.bind("<<ListboxSelect>>", self.on_select)
         self.listbox.bind("<BackSpace>", lambda e: self.go_up())
 
-        hint = tk.Label(self, text=f"Double-click a folder to open it. Clicking an "
-                                   f"existing {extension} file reuses its name.",
-                         anchor="w")
+        hint = tk.Label(
+            self,
+            text=f"Double-click a folder to open it. Clicking an "
+            f"existing {extension} file reuses its name.",
+            anchor="w",
+        )
         style_label(hint, fg=FG_MUTED, font=(UI_FAMILY, 8))
         hint.pack(fill="x", padx=10)
 
@@ -185,20 +243,41 @@ class FileSaveDialog(FolderNavMixin, tk.Toplevel):
         style_label(name_lbl, font=(UI_FAMILY, 9))
         name_lbl.pack(side="left")
         self.name_var = tk.StringVar(value=initial_file)
-        self.name_entry = tk.Entry(name_row, textvariable=self.name_var, bg=BG_INPUT,
-                                    fg=FG_TEXT, insertbackground=FG_TEXT, relief="flat",
-                                    highlightthickness=1, highlightbackground=BORDER_COLOR,
-                                    highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 10))
+        self.name_entry = tk.Entry(
+            name_row,
+            textvariable=self.name_var,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 10),
+        )
         self.name_entry.pack(side="left", fill="x", expand=True, padx=6)
         self.name_entry.bind("<Return>", lambda e: self.on_save())
 
         btn_row = tk.Frame(self, padx=10, pady=10, bg=BG_DARK)
         btn_row.pack(fill="x")
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self.on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK)
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self.on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+        )
         cancel_btn.pack(side="right", padx=4)
-        save_btn = RoundedButton(btn_row, text="Save", command=self.on_save,
-                                  bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=110)
+        save_btn = RoundedButton(
+            btn_row,
+            text="Save",
+            command=self.on_save,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=110,
+        )
         save_btn.pack(side="right", padx=4)
 
         self.refresh_list()
@@ -215,11 +294,13 @@ class FileSaveDialog(FolderNavMixin, tk.Toplevel):
             names = os.listdir(self.current_dir)
         except Exception:
             names = []
-        dirs = sorted(n for n in names
-                      if os.path.isdir(os.path.join(self.current_dir, n)))
-        files = sorted(n for n in names
-                       if n.lower().endswith(self.extension.lower())
-                       and os.path.isfile(os.path.join(self.current_dir, n)))
+        dirs = sorted(n for n in names if os.path.isdir(os.path.join(self.current_dir, n)))
+        files = sorted(
+            n
+            for n in names
+            if n.lower().endswith(self.extension.lower())
+            and os.path.isfile(os.path.join(self.current_dir, n))
+        )
         self.listbox.insert(tk.END, "..")
         for d in dirs:
             self.listbox.insert(tk.END, f"[{d}]")
@@ -262,8 +343,7 @@ class FileSaveDialog(FolderNavMixin, tk.Toplevel):
         try:
             os.makedirs(os.path.join(self.current_dir, name), exist_ok=False)
         except Exception as e:
-            dark_showerror("New Folder", f"Could not create the folder:\n{e}",
-                           parent=self)
+            dark_showerror("New Folder", f"Could not create the folder:\n{e}", parent=self)
             return
         self.refresh_list()
 
@@ -276,7 +356,8 @@ class FileSaveDialog(FolderNavMixin, tk.Toplevel):
             name += self.extension
         path = os.path.join(self.current_dir, name)
         if os.path.exists(path) and not dark_askyesno(
-                "Overwrite?", f"{name} already exists.\n\nOverwrite it?", parent=self):
+            "Overwrite?", f"{name} already exists.\n\nOverwrite it?", parent=self
+        ):
             return
         self.result_path = path
         self.destroy()

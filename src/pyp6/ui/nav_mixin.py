@@ -3,13 +3,18 @@
 import os
 import tkinter as tk
 
-from pyp6.constants import UI_FAMILY
 from pyp6._theme_vars import (
-    BG_DARK, BG_INPUT, FG_TEXT, FG_MUTED, ACCENT_BLUE, BORDER_COLOR,
+    ACCENT_BLUE,
+    BG_DARK,
+    BG_INPUT,
+    BORDER_COLOR,
     BTN_BLUE,
+    FG_MUTED,
+    FG_TEXT,
 )
+from pyp6.constants import UI_FAMILY
+from pyp6.ui.dialogs_common import dark_showwarning, style_label
 from pyp6.ui.widgets import RoundedButton
-from pyp6.ui.dialogs_common import style_label, dark_showwarning
 
 
 class FolderNavMixin:
@@ -19,17 +24,40 @@ class FolderNavMixin:
     def _build_nav_bar(self, container_bg=BG_DARK):
         top = tk.Frame(self, padx=10, pady=10, bg=container_bg)
         top.pack(fill="x")
-        up_btn = RoundedButton(top, text="\u2191 Up", command=self.go_up,
-                                bg=BG_INPUT, fg=FG_TEXT, parent_bg=container_bg, width=60, height=28)
+        up_btn = RoundedButton(
+            top,
+            text="\u2191 Up",
+            command=self.go_up,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=container_bg,
+            width=60,
+            height=28,
+        )
         up_btn.pack(side="left", padx=(0, 6))
-        self.path_entry = tk.Entry(top, bg=BG_INPUT, fg=FG_TEXT,
-                                    insertbackground=FG_TEXT, relief="flat",
-                                    highlightthickness=1, highlightbackground=BORDER_COLOR,
-                                    highlightcolor=ACCENT_BLUE, font=(UI_FAMILY, 9))
+        self.path_entry = tk.Entry(
+            top,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=ACCENT_BLUE,
+            font=(UI_FAMILY, 9),
+        )
         self.path_entry.pack(side="left", fill="x", expand=True)
         self.path_entry.bind("<Return>", self.go_to_typed_path)
-        go_btn = RoundedButton(top, text="Go", command=self.go_to_typed_path,
-                                bg=BTN_BLUE, fg="#FFFFFF", parent_bg=container_bg, width=50, height=28)
+        go_btn = RoundedButton(
+            top,
+            text="Go",
+            command=self.go_to_typed_path,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=container_bg,
+            width=50,
+            height=28,
+        )
         go_btn.pack(side="left", padx=(6, 0))
 
         quick_row = tk.Frame(self, padx=10, bg=container_bg)
@@ -38,9 +66,17 @@ class FolderNavMixin:
         style_label(quick_lbl, bg=container_bg, fg=FG_MUTED, font=(UI_FAMILY, 8))
         quick_lbl.pack(side="left", padx=(0, 6))
         for label, path in self._quick_access_locations():
-            qb = RoundedButton(quick_row, text=label, command=lambda p=path: self.navigate_to(p),
-                                bg=BG_INPUT, fg=FG_TEXT, parent_bg=container_bg, width=80, height=24,
-                                font=(UI_FAMILY, 8, "bold"))
+            qb = RoundedButton(
+                quick_row,
+                text=label,
+                command=lambda p=path: self.navigate_to(p),
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                parent_bg=container_bg,
+                width=80,
+                height=24,
+                font=(UI_FAMILY, 8, "bold"),
+            )
             qb.pack(side="left", padx=2)
 
     def _quick_access_locations(self):
@@ -53,6 +89,7 @@ class FolderNavMixin:
 
         if os.name == "nt":
             import string
+
             for letter in string.ascii_uppercase:
                 drive = f"{letter}:\\"
                 if os.path.exists(drive):

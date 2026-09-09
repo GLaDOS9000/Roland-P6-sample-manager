@@ -4,23 +4,35 @@ import os
 import shutil
 import tkinter as tk
 
-from pyp6.constants import UI_FAMILY, BANKS, PADS, MAX_UPLOAD_BYTES
 from pyp6._theme_vars import (
-    BG_DARK, BG_PANEL, BG_INPUT, FG_TEXT, FG_MUTED,
-    ACCENT_BLUE, ACCENT_GREEN, ACCENT_ORANGE, ACCENT_RED,
+    ACCENT_BLUE,
+    ACCENT_GREEN,
+    ACCENT_ORANGE,
+    ACCENT_RED,
+    BG_DARK,
+    BG_INPUT,
+    BG_PANEL,
     BORDER_LIGHT,
-    BTN_GREEN, BTN_ORANGE,
+    BTN_GREEN,
+    BTN_ORANGE,
+    FG_MUTED,
+    FG_TEXT,
 )
 from pyp6.config import (
-    derived_temp_path, load_last_export_dir, save_last_export_dir,
+    derived_temp_path,
+    load_last_export_dir,
+    save_last_export_dir,
 )
-from pyp6.ui.widgets import RoundedButton, RoundedPanel
+from pyp6.constants import BANKS, MAX_UPLOAD_BYTES, PADS, UI_FAMILY
+from pyp6.ui.dialogs.file import FolderPickerDialog
 from pyp6.ui.dialogs_common import (
-    style_toplevel, style_label, style_checkbutton,
     center_toplevel_on_parent,
     dark_showerror,
+    style_checkbutton,
+    style_label,
+    style_toplevel,
 )
-from pyp6.ui.dialogs.file import FolderPickerDialog
+from pyp6.ui.widgets import RoundedButton, RoundedPanel
 
 
 def _log_timing(label):
@@ -50,9 +62,15 @@ class ClearBanksDialog(tk.Toplevel):
         outer = tk.Frame(self, bg=BG_DARK, padx=16, pady=16)
         outer.pack(fill="both", expand=True)
 
-        banks_panel = RoundedPanel(outer, title="Banks to Clear", parent_bg=BG_DARK,
-                                    panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                    title_fg=ACCENT_BLUE)
+        banks_panel = RoundedPanel(
+            outer,
+            title="Banks to Clear",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         banks_panel.pack(fill="x", pady=(0, 12))
 
         active = self.app.current_bank.get()
@@ -73,36 +91,78 @@ class ClearBanksDialog(tk.Toplevel):
 
         select_row = tk.Frame(banks_panel.body, bg=BG_PANEL)
         select_row.pack(fill="x", pady=(4, 8))
-        all_btn = RoundedButton(select_row, text="All", command=lambda: self._set_all(True),
-                                 bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL, width=70, height=24,
-                                 font=(UI_FAMILY, 8))
+        all_btn = RoundedButton(
+            select_row,
+            text="All",
+            command=lambda: self._set_all(True),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=70,
+            height=24,
+            font=(UI_FAMILY, 8),
+        )
         all_btn.pack(side="left", padx=(0, 4))
-        none_btn = RoundedButton(select_row, text="None", command=lambda: self._set_all(False),
-                                  bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL, width=70, height=24,
-                                  font=(UI_FAMILY, 8))
+        none_btn = RoundedButton(
+            select_row,
+            text="None",
+            command=lambda: self._set_all(False),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=70,
+            height=24,
+            font=(UI_FAMILY, 8),
+        )
         none_btn.pack(side="left")
 
-        info_panel = RoundedPanel(outer, title="What This Does", parent_bg=BG_DARK,
-                                   panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                   title_fg=ACCENT_BLUE)
+        info_panel = RoundedPanel(
+            outer,
+            title="What This Does",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         info_panel.pack(fill="x", pady=(0, 12))
-        self.summary_label = tk.Label(info_panel.body, anchor="w", justify="left",
-                                       wraplength=350, text="")
+        self.summary_label = tk.Label(
+            info_panel.body, anchor="w", justify="left", wraplength=350, text=""
+        )
         style_label(self.summary_label, bg=BG_PANEL, font=(UI_FAMILY, 9))
         self.summary_label.pack(fill="x", pady=(8, 4))
-        hint = tk.Label(info_panel.body, anchor="w", justify="left", wraplength=350,
-                         text="Only the pads in the app are emptied - no files on disk or on "
-                              "the P-6 are touched. Undo (Ctrl+Z) restores everything.")
+        hint = tk.Label(
+            info_panel.body,
+            anchor="w",
+            justify="left",
+            wraplength=350,
+            text="Only the pads in the app are emptied - no files on disk or on "
+            "the P-6 are touched. Undo (Ctrl+Z) restores everything.",
+        )
         style_label(hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         hint.pack(fill="x", pady=(0, 8))
 
         btn_row = tk.Frame(outer, bg=BG_DARK)
         btn_row.pack(fill="x", side="bottom")
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self.on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=90)
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self.on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
         cancel_btn.pack(side="right", padx=4)
-        self.clear_btn = RoundedButton(btn_row, text="Clear", command=self.on_clear,
-                                        bg=BTN_ORANGE, fg="#FFFFFF", parent_bg=BG_DARK, width=90)
+        self.clear_btn = RoundedButton(
+            btn_row,
+            text="Clear",
+            command=self.on_clear,
+            bg=BTN_ORANGE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=90,
+        )
         self.clear_btn.pack(side="right", padx=4)
 
         self._update_summary()
@@ -125,13 +185,14 @@ class ClearBanksDialog(tk.Toplevel):
             self.summary_label.config(text="No banks selected.", fg=FG_MUTED)
         elif not with_samples:
             self.summary_label.config(
-                text=f"{', '.join(banks)} selected - all of them are already empty.",
-                fg=FG_MUTED)
+                text=f"{', '.join(banks)} selected - all of them are already empty.", fg=FG_MUTED
+            )
         else:
             pad_word = "bank" if len(with_samples) == 1 else "banks"
             self.summary_label.config(
-                text=f"Clears {len(with_samples)} loaded {pad_word}: "
-                     f"{', '.join(with_samples)}.", fg=ACCENT_ORANGE)
+                text=f"Clears {len(with_samples)} loaded {pad_word}: {', '.join(with_samples)}.",
+                fg=ACCENT_ORANGE,
+            )
         if hasattr(self, "clear_btn"):
             self.clear_btn.config_state("normal" if banks else "disabled")
 
@@ -177,9 +238,15 @@ class CopyBanksDialog(tk.Toplevel):
         outer = tk.Frame(self, bg=BG_DARK, padx=16, pady=16)
         outer.pack(fill="both", expand=True)
 
-        banks_panel = RoundedPanel(outer, title="Banks to Copy", parent_bg=BG_DARK,
-                                    panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                    title_fg=ACCENT_BLUE)
+        banks_panel = RoundedPanel(
+            outer,
+            title="Banks to Copy",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         banks_panel.pack(fill="x", pady=(0, 12))
 
         self.bank_vars = {}
@@ -197,18 +264,40 @@ class CopyBanksDialog(tk.Toplevel):
 
         select_row = tk.Frame(banks_panel.body, bg=BG_PANEL)
         select_row.pack(fill="x", pady=(4, 8))
-        all_btn = RoundedButton(select_row, text="All", command=lambda: self._set_all(True),
-                                 bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL, width=70, height=24,
-                                 font=(UI_FAMILY, 8))
+        all_btn = RoundedButton(
+            select_row,
+            text="All",
+            command=lambda: self._set_all(True),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=70,
+            height=24,
+            font=(UI_FAMILY, 8),
+        )
         all_btn.pack(side="left", padx=(0, 4))
-        none_btn = RoundedButton(select_row, text="None", command=lambda: self._set_all(False),
-                                  bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL, width=70, height=24,
-                                  font=(UI_FAMILY, 8))
+        none_btn = RoundedButton(
+            select_row,
+            text="None",
+            command=lambda: self._set_all(False),
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=70,
+            height=24,
+            font=(UI_FAMILY, 8),
+        )
         none_btn.pack(side="left")
 
-        total_panel = RoundedPanel(outer, title="Total to Transfer", parent_bg=BG_DARK,
-                                    panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                    title_fg=ACCENT_BLUE)
+        total_panel = RoundedPanel(
+            outer,
+            title="Total to Transfer",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         total_panel.pack(fill="x", pady=(0, 12))
         self.total_label = tk.Label(total_panel.body, text="", anchor="w")
         style_label(self.total_label, bg=BG_PANEL, font=(UI_FAMILY, 14, "bold"))
@@ -216,11 +305,25 @@ class CopyBanksDialog(tk.Toplevel):
 
         btn_row = tk.Frame(outer, bg=BG_DARK)
         btn_row.pack(fill="x", side="bottom")
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self.on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=90)
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self.on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
         cancel_btn.pack(side="right", padx=4)
-        self.copy_btn = RoundedButton(btn_row, text="Copy", command=self.on_copy,
-                                       bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=90)
+        self.copy_btn = RoundedButton(
+            btn_row,
+            text="Copy",
+            command=self.on_copy,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=90,
+        )
         self.copy_btn.pack(side="right", padx=4)
 
         self._update_total()
@@ -246,8 +349,10 @@ class CopyBanksDialog(tk.Toplevel):
         n = len(banks)
         bank_word = "bank" if n == 1 else "banks"
         self.total_label.config(
-            text=f"{mb:.2f} MB across {n} {bank_word}" + (f"  (over {limit_mb:.0f} MB!)" if over else ""),
-            fg=color)
+            text=f"{mb:.2f} MB across {n} {bank_word}"
+            + (f"  (over {limit_mb:.0f} MB!)" if over else ""),
+            fg=color,
+        )
         if hasattr(self, "copy_btn"):
             self.copy_btn.config_state("normal" if banks else "disabled")
 
@@ -308,9 +413,15 @@ class ImportBankDialog(tk.Toplevel):
         outer = tk.Frame(self, bg=BG_DARK, padx=18, pady=16)
         outer.pack(fill="both", expand=True)
 
-        steps_panel = RoundedPanel(outer, title="On the P-6 itself", parent_bg=BG_DARK,
-                                    panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                    title_fg=ACCENT_BLUE)
+        steps_panel = RoundedPanel(
+            outer,
+            title="On the P-6 itself",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         steps_panel.pack(fill="x", pady=(0, 12))
         current_bank = self.app.current_bank.get()
         steps_text = (
@@ -325,34 +436,54 @@ class ImportBankDialog(tk.Toplevel):
             f"5. A \u201cP-6\u201d drive appears on this computer, containing "
             f"an \u201cEXPORT\u201d folder with that bank's samples."
         )
-        steps_label = tk.Label(steps_panel.body, text=steps_text, anchor="w", justify="left",
-                                wraplength=500)
+        steps_label = tk.Label(
+            steps_panel.body, text=steps_text, anchor="w", justify="left", wraplength=500
+        )
         style_label(steps_label, bg=BG_PANEL, font=(UI_FAMILY, 9))
         steps_label.pack(fill="x", pady=(6, 0))
 
         warning_label = tk.Label(
             outer,
             text=f"Importing will overwrite Bank {current_bank} in the app (undo covers this "
-                 f"afterward). Per-pad rate/pitch/mono settings aren't stored in the export, so "
-                 f"they come in at their defaults - only the audio itself is brought over.",
-            anchor="w", justify="left", wraplength=520)
+            f"afterward). Per-pad rate/pitch/mono settings aren't stored in the export, so "
+            f"they come in at their defaults - only the audio itself is brought over.",
+            anchor="w",
+            justify="left",
+            wraplength=520,
+        )
         style_label(warning_label, fg=ACCENT_ORANGE, font=(UI_FAMILY, 8))
         warning_label.pack(fill="x", pady=(0, 12))
 
-        folder_panel = RoundedPanel(outer, title="EXPORT Folder", parent_bg=BG_DARK,
-                                     panel_bg=BG_PANEL, border=BORDER_LIGHT, radius=14,
-                                     title_fg=ACCENT_BLUE)
+        folder_panel = RoundedPanel(
+            outer,
+            title="EXPORT Folder",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
         folder_panel.pack(fill="x", pady=(0, 12))
         folder_row = tk.Frame(folder_panel.body, bg=BG_PANEL)
         folder_row.pack(fill="x", pady=(6, 0))
-        self.folder_label = tk.Label(folder_row, text="No folder selected yet. Pick the P-6 "
-                                                       "drive or its \u201cEXPORT\u201d folder.",
-                                      anchor="w")
+        self.folder_label = tk.Label(
+            folder_row,
+            text="No folder selected yet. Pick the P-6 drive or its \u201cEXPORT\u201d folder.",
+            anchor="w",
+        )
         style_label(self.folder_label, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.folder_label.pack(side="left", fill="x", expand=True)
-        choose_btn = RoundedButton(folder_row, text="Choose Folder...", command=self.choose_folder,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_PANEL, width=130, height=26,
-                                    font=(UI_FAMILY, 8))
+        choose_btn = RoundedButton(
+            folder_row,
+            text="Choose Folder...",
+            command=self.choose_folder,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_PANEL,
+            width=130,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
         choose_btn.pack(side="right")
 
         self.found_label = tk.Label(outer, text="", anchor="w", justify="left", wraplength=520)
@@ -361,12 +492,26 @@ class ImportBankDialog(tk.Toplevel):
 
         btn_row = tk.Frame(outer, bg=BG_DARK)
         btn_row.pack(fill="x", side="bottom", pady=(12, 0))
-        cancel_btn = RoundedButton(btn_row, text="Cancel", command=self.on_cancel,
-                                    bg=BG_INPUT, fg=FG_TEXT, parent_bg=BG_DARK, width=90)
+        cancel_btn = RoundedButton(
+            btn_row,
+            text="Cancel",
+            command=self.on_cancel,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
         cancel_btn.pack(side="right", padx=4)
-        self.import_btn = RoundedButton(btn_row, text="Import", command=self.on_import,
-                                         bg=BTN_GREEN, fg="#FFFFFF", parent_bg=BG_DARK, width=100,
-                                         state="disabled")
+        self.import_btn = RoundedButton(
+            btn_row,
+            text="Import",
+            command=self.on_import,
+            bg=BTN_GREEN,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=100,
+            state="disabled",
+        )
         self.import_btn.pack(side="right", padx=4)
 
         # Re-use last session's folder if the drive is still mounted and the
@@ -375,8 +520,12 @@ class ImportBankDialog(tk.Toplevel):
         # pick, and an error about a drive that simply isn't plugged in
         # would be noise.
         remembered = load_last_export_dir()
-        if remembered and self._resolve_export_folder(
-                remembered, preferred_bank=self.app.current_bank.get())[0]:
+        if (
+            remembered
+            and self._resolve_export_folder(remembered, preferred_bank=self.app.current_bank.get())[
+                0
+            ]
+        ):
             self._apply_chosen_folder(remembered)
 
         self.protocol("WM_DELETE_WINDOW", self.on_cancel)
@@ -459,9 +608,13 @@ class ImportBankDialog(tk.Toplevel):
                 return base, note
 
         # Then the bank level: EXPORT/BANK_<letter>/PAD_<n>/...
-        banks = [(name, path) for name, path in
-                 ImportBankDialog._subdirs(base, lambda e: e.upper().startswith("BANK_"))
-                 if ImportBankDialog._folder_has_pads(path)]
+        banks = [
+            (name, path)
+            for name, path in ImportBankDialog._subdirs(
+                base, lambda e: e.upper().startswith("BANK_")
+            )
+            if ImportBankDialog._folder_has_pads(path)
+        ]
         _log_timing(f"  EXPORT scan: base={base} usable banks={[n for n, _ in banks]}")
         if not banks:
             return None, ""
@@ -479,8 +632,11 @@ class ImportBankDialog(tk.Toplevel):
         return path, f"{note} (using {name}; folder contains {others})".strip()
 
     def choose_folder(self):
-        picker = FolderPickerDialog(self, initial_dir=(load_last_export_dir() or self.app.import_root),
-                                     title="Select the P-6 EXPORT Folder")
+        picker = FolderPickerDialog(
+            self,
+            initial_dir=(load_last_export_dir() or self.app.import_root),
+            title="Select the P-6 EXPORT Folder",
+        )
         self.wait_window(picker)
         if not picker.selected_dir:
             return
@@ -491,16 +647,18 @@ class ImportBankDialog(tk.Toplevel):
         updates the dialog. Shared by the Choose Folder button and the
         auto-fill from the last session, so both behave identically."""
         resolved, note = self._resolve_export_folder(
-            chosen_dir, preferred_bank=self.app.current_bank.get())
+            chosen_dir, preferred_bank=self.app.current_bank.get()
+        )
         if resolved is None:
             self.selected_folder = None
             self.folder_label.config(text=chosen_dir, fg=FG_TEXT)
             self.found_label.config(
                 text="No pad samples found there. Expected "
-                     "EXPORT/BANK_x/PAD_n/<name>.WAV - select the P-6 drive, the "
-                     "\u201cEXPORT\u201d folder, or one BANK folder inside it. If the path "
-                     "looks right, the device may not have finished writing its export yet.",
-                fg=ACCENT_ORANGE)
+                "EXPORT/BANK_x/PAD_n/<name>.WAV - select the P-6 drive, the "
+                "\u201cEXPORT\u201d folder, or one BANK folder inside it. If the path "
+                "looks right, the device may not have finished writing its export yet.",
+                fg=ACCENT_ORANGE,
+            )
             self.import_btn.config_state("disabled")
             return False
 
@@ -508,8 +666,7 @@ class ImportBankDialog(tk.Toplevel):
         self.folder_label.config(text=self.selected_folder, fg=FG_TEXT)
         found = [p for p in PADS if self._find_pad_file(self.selected_folder, p)]
         pads_str = ", ".join(str(p) for p in found)
-        self.found_label.config(text=f"Found samples for pad(s): {pads_str}{note}",
-                                fg=ACCENT_GREEN)
+        self.found_label.config(text=f"Found samples for pad(s): {pads_str}{note}", fg=ACCENT_GREEN)
         self.import_btn.config_state("normal")
         if remember:
             # Remember what was PICKED, not what it resolved to - see
@@ -567,8 +724,8 @@ class ImportBankDialog(tk.Toplevel):
                 # unmounted or the device rewrote its EXPORT folder - and a
                 # preset saved after that silently stored those banks empty.
                 self.app.pad_widgets[pad].set_file(
-                    self._copy_into_temp(src, bank, pad),
-                    display_name=os.path.basename(src))
+                    self._copy_into_temp(src, bank, pad), display_name=os.path.basename(src)
+                )
                 imported += 1
             except Exception as e:
                 # One unreadable/corrupt file on the device must not abort
@@ -585,13 +742,15 @@ class ImportBankDialog(tk.Toplevel):
         if failed:
             dark_showerror(
                 "Some Pads Could Not Be Imported",
-                "These pads' files could not be read:\n"
-                + "\n".join(f"PAD_{p}" for p in failed), parent=self)
+                "These pads' files could not be read:\n" + "\n".join(f"PAD_{p}" for p in failed),
+                parent=self,
+            )
         if missing:
             missing_str = ", ".join(str(p) for p in missing)
             self.app.show_status(
                 f"Bank {bank}: {imported} pad(s) imported, no sample found for pad(s) {missing_str}.",
-                kind="warning")
+                kind="warning",
+            )
         else:
             self.app.show_status(f"Bank {bank}: {imported} pad(s) imported from the P-6.")
         self.destroy()

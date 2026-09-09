@@ -28,11 +28,16 @@ except ImportError:
     AudioSegment = None
 
 from pyp6 import APP_VERSION
+from pyp6.audio.playback import PYDUB_AVAILABLE
 from pyp6.constants import (
-    APP_AUTHOR, APP_YEAR, APP_URL, APP_NAME, APP_SUBTITLE,
-    CONFIG_FILE, TEMP_DIR,
+    APP_AUTHOR,
+    APP_NAME,
+    APP_SUBTITLE,
+    APP_URL,
+    APP_YEAR,
+    CONFIG_FILE,
+    TEMP_DIR,
 )
-from pyp6.audio.playback import PYDUB_AVAILABLE, FFMPEG_AVAILABLE
 
 # These are set at startup from __main__.py.
 DND_AVAILABLE = False
@@ -43,6 +48,7 @@ _DND_APP = None
 # -----------------------------------------------------------------------
 # helpers
 # -----------------------------------------------------------------------
+
 
 def _module_version(module, dist_name=None):
     """Best-effort version string for an optional dependency.
@@ -59,6 +65,7 @@ def _module_version(module, dist_name=None):
     if dist_name:
         try:
             from importlib.metadata import version as _dist_version
+
             return str(_dist_version(dist_name))
         except Exception:
             pass
@@ -94,6 +101,7 @@ def collect_about_info():
     # Re-read the live module attribute so that overrides applied in
     # SettingsDialog are visible.
     from pyp6.audio import playback as _pb
+
     ffmpeg_avail = _pb.FFMPEG_AVAILABLE
 
     rows = []
@@ -115,6 +123,7 @@ def collect_about_info():
     if PYDUB_AVAILABLE:
         try:
             import pydub as _pydub
+
             rows.append(("pydub", _module_version(_pydub, "pydub")))
         except Exception:
             rows.append(("pydub", "installed"))

@@ -4,16 +4,15 @@ import colorsys
 
 from pyp6.constants import BUTTON_SATURATION
 
-
 # ---------------------------------------------------------------------------
 # Color utility functions
 # ---------------------------------------------------------------------------
 
+
 def _relative_luminance(hex_color):
     h = hex_color.lstrip("#")
-    channels = [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
-    channels = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-                for c in channels]
+    channels = [int(h[i : i + 2], 16) / 255.0 for i in (0, 2, 4)]
+    channels = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
     return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
 
 
@@ -26,10 +25,11 @@ def contrast_ratio(hex_a, hex_b):
 
 def blend_colors(hex_a, hex_b, t):
     """Mixes two colors, t=0 gives `hex_a` and t=1 gives `hex_b`."""
-    a = hex_a.lstrip("#"); b = hex_b.lstrip("#")
+    a = hex_a.lstrip("#")
+    b = hex_b.lstrip("#")
     out = []
     for i in (0, 2, 4):
-        ca, cb = int(a[i:i + 2], 16), int(b[i:i + 2], 16)
+        ca, cb = int(a[i : i + 2], 16), int(b[i : i + 2], 16)
         out.append(int(round(ca + (cb - ca) * t)))
     return "#{:02x}{:02x}{:02x}".format(*out)
 
@@ -44,7 +44,7 @@ def readable_on(hex_color, background, target_ratio=4.5):
     if contrast_ratio(hex_color, background) >= target_ratio:
         return hex_color
     h = hex_color.lstrip("#")
-    r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    r, g, b = (int(h[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
     hue, lig, sat = colorsys.rgb_to_hls(r, g, b)
     # Move away from the background: lighten on dark, darken on light.
     direction = 1.0 if _relative_luminance(background) < 0.5 else -1.0
@@ -52,7 +52,7 @@ def readable_on(hex_color, background, target_ratio=4.5):
     for step in range(1, 51):
         cand_l = min(1.0, max(0.0, lig + direction * step * 0.02))
         rr, gg, bb = colorsys.hls_to_rgb(hue, cand_l, sat)
-        cand = f"#{int(rr*255):02x}{int(gg*255):02x}{int(bb*255):02x}"
+        cand = f"#{int(rr * 255):02x}{int(gg * 255):02x}{int(bb * 255):02x}"
         best = cand
         if contrast_ratio(cand, background) >= target_ratio:
             return cand
@@ -72,13 +72,13 @@ def fill_for_white_text(hex_color, target_ratio=4.5, saturation_scale=BUTTON_SAT
     The order matters: desaturating changes luminance, so the contrast
     search has to run afterwards or the guarantee wouldn't hold."""
     h = hex_color.lstrip("#")
-    r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    r, g, b = (int(h[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
     hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
     saturation *= saturation_scale
 
-    def at(l):
-        rr, gg, bb = colorsys.hls_to_rgb(hue, l, saturation)
-        return "#{:02X}{:02X}{:02X}".format(round(rr * 255), round(gg * 255), round(bb * 255))
+    def at(lum):
+        rr, gg, bb = colorsys.hls_to_rgb(hue, lum, saturation)
+        return f"#{round(rr * 255):02X}{round(gg * 255):02X}{round(bb * 255):02X}"
 
     if contrast_ratio(at(lightness), "#FFFFFF") >= target_ratio:
         return at(lightness)  # already dark enough; keep the original brightness
