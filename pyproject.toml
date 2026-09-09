@@ -1,0 +1,34 @@
+[project]
+name = "PyP6-Roland-P6-Sample-Manager"
+version = "3.0.0"
+description = "Roland AIRA P-6 Sample Manager"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "sounddevice",
+    "soundfile",
+    "numpy",
+    "pydub",
+    "tkinterdnd2",
+    "audioop-lts",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+pyp6 = "pyp6.__main__:main"
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyp6"]
