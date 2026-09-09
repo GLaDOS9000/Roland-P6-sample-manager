@@ -9,8 +9,11 @@ import numpy as np
 
 try:
     import sounddevice as sd
+
+    from pyp6.audio.playback import SD_OUTPUT_DEVICE
 except ImportError:
     sd = None
+    SD_OUTPUT_DEVICE = None
 
 from pyp6._theme_vars import (
     ACCENT_BLUE,
@@ -527,7 +530,7 @@ class WaveformCreatorDialog(tk.Toplevel):
             audio = wt_render_sweep(
                 self._entry(), midi, int(cfg.get("cycles", 1)), int(cfg.get("up", 0)), 24
             )
-            sd.play(audio, WT_SR)
+            sd.play(audio, WT_SR, device=SD_OUTPUT_DEVICE)
         except Exception as e:
             dark_showerror("Preview", f"Could not play the sweep:\n{e}", parent=self)
             return
@@ -1676,7 +1679,7 @@ class SynthDialog(tk.Toplevel):
         steps = self._preview_steps(self.prev_family)
         try:
             audio = wt_render_sweep(self._resolve(self.prev_family), midi, cycles, up, steps)
-            sd.play(audio, WT_SR)
+            sd.play(audio, WT_SR, device=SD_OUTPUT_DEVICE)
         except Exception as e:
             self._status(f"Preview failed: {e}", "bad")
             return

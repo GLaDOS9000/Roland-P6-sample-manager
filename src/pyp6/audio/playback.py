@@ -38,6 +38,48 @@ except ImportError:
     PYDUB_AVAILABLE = False
     FFMPEG_AVAILABLE = False
 
+# ---------------------------------------------------------------------------
+# sounddevice output device
+# ---------------------------------------------------------------------------
+
+try:
+    import sounddevice as sd
+
+    def _find_output_device():
+        """Return a device index that PortAudio can actually open, or None to
+        let sounddevice use its own default (which may fail on macOS when the
+        system default reports paInvalidDevice / -9986).
+
+        Strategy: prefer the host API default for Core Audio; fall back to the
+        first device that has output channels and can be queried without error.
+        """
+        try:
+            host_apis = sd.query_hostapis()
+            for api in host_apis:
+                if "Core Audio" in api["name"] and api["default_output_device"] >= 0:
+                    return api["default_output_device"]
+        except Exception:
+            pass
+
+        try:
+            devices = sd.query_devices()
+            for i, dev in enumerate(devices):
+                if dev["max_output_channels"] > 0:
+                    try:
+                        sd.check_output_settings(device=i)
+                        return i
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+        return None  # let sounddevice decide; may still warn but won't crash
+
+    SD_OUTPUT_DEVICE = _find_output_device()
+except ImportError:
+    sd = None
+    SD_OUTPUT_DEVICE = None
+
 _pydub_warning_shown = False  # only nag once per session if pydub is missing
 
 

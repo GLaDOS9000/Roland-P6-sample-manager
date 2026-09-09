@@ -41,7 +41,7 @@ from pyp6._theme_vars import (
 )
 from pyp6.audio.conversion import apply_pitch_shift, convert_to_wav_if_needed
 from pyp6.audio.info import compute_truncate_fraction, get_wav_info
-from pyp6.audio.playback import PYDUB_AVAILABLE, warn_pydub_missing_once
+from pyp6.audio.playback import PYDUB_AVAILABLE, SD_OUTPUT_DEVICE, warn_pydub_missing_once
 from pyp6.config import save_last_sample_dir, wavetable_path
 from pyp6.constants import (
     BANKS,
@@ -1139,7 +1139,7 @@ class SampleSlot:
         frac = min(max(getattr(self, "_seek_frac", 0.0), 0.0), 0.999)
         self._seek_frac = 0.0
         start = int(len(samples) * frac)
-        sd.play(samples[start:] if start else samples, fs)
+        sd.play(samples[start:] if start else samples, fs, device=SD_OUTPUT_DEVICE)
         self._mirror_to_main_waveform(samples, fs, offset_frac=frac)
 
     def play_from(self, frac):

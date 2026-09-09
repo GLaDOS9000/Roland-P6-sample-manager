@@ -8,8 +8,11 @@ import numpy as np
 
 try:
     import sounddevice as sd
+
+    from pyp6.audio.playback import SD_OUTPUT_DEVICE
 except ImportError:
     sd = None
+    SD_OUTPUT_DEVICE = None
 
 try:
     import soundfile as sf
@@ -792,7 +795,7 @@ class PadWaveformViewDialog(tk.Toplevel):
                 if peak > 0:
                     segment = segment * (0.98 / peak)
             segment = apply_fade_envelope(segment, fs, self.fade_in_seconds, self.fade_out_seconds)
-            sd.play(segment, fs)
+            sd.play(segment, fs, device=SD_OUTPUT_DEVICE)
             self.is_playing = True
             self.play_btn.text = "\u25a0 Stop"
             self.play_btn._draw()
