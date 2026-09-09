@@ -1,5 +1,5 @@
 # PyP6 - Roland P-6 Sample Manager
-![Roland-P6-sample-manager](https://github.com/j0kerpack/Roland-P6-sample-manager/blob/main/PyP6-Roland-P6-Sample-Manager_3_0_0_.png)
+![Roland-P6-sample-manager](assets/screenshots/main.png)
 
 **Version 3.0.0** - © 2026 Brian Siemund
 
@@ -26,7 +26,7 @@ step through with the START knob.
 
 ### Wavetable synthesizer
 
-![Wavetable synthesizer](https://github.com/j0kerpack/Roland-P6-sample-manager/blob/main/PyP6-Roland-P6-Sample-Manager_3_0_0_synth.png)
+![Wavetable synthesizer](assets/screenshots/synth.png)
 
 The P-6 has no oscillators. It does have a START knob that steps through a
 sample in 256 positions - and if the sample is built so that every one of
@@ -57,7 +57,7 @@ does.
 > that is a property of the P-6, not a bug in the table.
 
 ### Waveform Creator
-![Waveform Creator](https://github.com/j0kerpack/Roland-P6-sample-manager/blob/main/PyP6-Roland-P6-Sample-Manager_3_0_0_waveform_creator.png)
+![Waveform Creator](assets/screenshots/waveform_creator.png)
 Not satisfied with the 16 built-in families? Draw your own.
 
 - **Draw two shapes with the mouse**, A and B, and the family morphs from
@@ -316,7 +316,7 @@ folder in the background, so the window opens immediately. Use
 if needed. This is remembered across restarts. On most computers you will see a device called P-6. Insede there is a folder called IMPORT. This you have to open and then you can see the BANK_A-H folders.
 
 ### 5.2 Loading a sample onto a pad
-![Sample import](https://github.com/j0kerpack/Roland-P6-sample-manager/blob/main/PyP6-Roland-P6-Sample-Manager_3_0_0_load.png)
+![Sample import](assets/screenshots/load.png)
 
 Click "Load" on any pad to open a file browser with folder navigation,
 sortable columns (Name / Length / Size), waveform preview and audition
@@ -426,7 +426,7 @@ Use the **Preset** button in the top bar:
 - **Recent** - the last five presets, one click away.
 
 ### 5.10 Chop feature - building a multi-sample from several files
-![Sample chop slice tool](https://github.com/j0kerpack/Roland-P6-sample-manager/blob/main/PyP6-Roland-P6-Sample-Manager_3_0_0_chop.png)
+![Sample chop slice tool](assets/screenshots/chop.png)
 Click "Chop" on any pad to combine several short samples (e.g. one-shot
 kicks, snares, hi-hats) into a single WAV file ready to be split into equal
 slices using the P-6's built-in **Chop** function in Sample Edit (Voice)
