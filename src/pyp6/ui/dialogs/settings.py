@@ -3,6 +3,7 @@
 import os
 import tkinter as tk
 
+import pyp6.audio.playback as _pb
 from pyp6._theme_vars import (
     ACCENT_BLUE,
     BG_DARK,
@@ -485,6 +486,69 @@ class SettingsDialog(tk.Toplevel):
         style_label(hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         hint.pack(fill="x", pady=(6, 0))
 
+        # ----- Audio Output -----
+        audio_out_panel = RoundedPanel(
+            outer,
+            title="Audio Output",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            border=BORDER_LIGHT,
+            radius=14,
+            title_fg=ACCENT_BLUE,
+        )
+        audio_out_panel.pack(fill="x", pady=(0, 12))
+
+        dev_row = tk.Frame(audio_out_panel.body, bg=BG_PANEL)
+        dev_row.pack(fill="x")
+
+        dev_lbl = tk.Label(dev_row, text="Output device:", width=14, anchor="w")
+        style_label(dev_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
+        dev_lbl.pack(side="left")
+
+        self._device_names, self._device_indices = self._list_output_devices()
+        current_idx = _pb.SD_OUTPUT_DEVICE
+        try:
+            current_name = (
+                self._device_names[self._device_indices.index(current_idx)]
+                if current_idx in self._device_indices
+                else self._device_names[0]
+            )
+        except (ValueError, IndexError):
+            current_name = self._device_names[0] if self._device_names else "—"
+
+        self.device_var = tk.StringVar(value=current_name)
+        self._device_dd = RoundedDropdown(
+            dev_row,
+            self.device_var,
+            self._device_names,
+            parent_bg=BG_PANEL,
+            width=320,
+            height=26,
+        )
+        self._device_dd.pack(side="left", padx=6)
+
+        reload_btn = RoundedButton(
+            dev_row,
+            text="Reload",
+            command=self._reload_output_device,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=80,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
+        reload_btn.pack(side="left", padx=4)
+        add_tooltip(
+            reload_btn,
+            "Re-scans audio devices and applies the selected output. "
+            "Use this after plugging in or changing your audio interface.",
+        )
+
+        self._dev_status_lbl = tk.Label(audio_out_panel.body, text="", anchor="w")
+        style_label(self._dev_status_lbl, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
+        self._dev_status_lbl.pack(fill="x", pady=(4, 0))
+
         # ----- Defaults -----
         defaults_panel = RoundedPanel(
             outer,
@@ -652,6 +716,49 @@ class SettingsDialog(tk.Toplevel):
         center_toplevel_on_parent(self, parent)
         self._safe_grab()
 
+    @staticmethod
+    def _list_output_devices():
+        """Return (names, indices) for all devices with output channels."""
+        try:
+            import sounddevice as sd
+
+            devices = sd.query_devices()
+            names, indices = [], []
+            for i, dev in enumerate(devices):
+                if dev["max_output_channels"] > 0:
+                    names.append(f"{dev['name']} [{dev['hostapi']}]")
+                    indices.append(i)
+            if not names:
+                names, indices = ["(no output devices found)"], [-1]
+        except Exception:
+            names, indices = ["(sounddevice unavailable)"], [-1]
+        return names, indices
+
+    def _reload_output_device(self):
+        """Re-scan devices, apply the selected one, and update SD_OUTPUT_DEVICE."""
+        selected_name = self.device_var.get()
+        try:
+            pos = self._device_names.index(selected_name)
+            dev_idx = self._device_indices[pos]
+        except (ValueError, IndexError):
+            dev_idx = None
+
+        try:
+            import sounddevice as sd
+
+            if dev_idx is not None and dev_idx >= 0:
+                sd.check_output_settings(device=dev_idx)
+                _pb.SD_OUTPUT_DEVICE = dev_idx
+                name = sd.query_devices(dev_idx)["name"]
+                self._dev_status_lbl.config(text=f"Active: {name}", fg=FG_TEXT)
+            else:
+                new = _pb._find_output_device()
+                _pb.SD_OUTPUT_DEVICE = new
+                name = sd.query_devices(new)["name"] if new is not None else "system default"
+                self._dev_status_lbl.config(text=f"Active: {name}", fg=FG_TEXT)
+        except Exception as exc:
+            self._dev_status_lbl.config(text=f"Failed: {exc}", fg="#FF6B6B")
+
     def _open_about(self):
         """Hands the modal grab over to the About window and takes it back
         afterwards - two stacked grab_set() windows otherwise leave Settings
@@ -740,8 +847,6 @@ class SettingsDialog(tk.Toplevel):
         self.focus_force()
 
     def _save(self):
-        import pyp6.audio.playback as _pb
-
         # Theme
         new_theme = self.theme_var.get()
         theme_changed = new_theme != THEME
