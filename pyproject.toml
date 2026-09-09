@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest"]
+dev  = ["pytest", "ruff", "pre-commit"]
 
 [project.scripts]
 pyp6 = "pyp6.__main__:main"
@@ -25,6 +26,21 @@ package = true
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]  # line-length handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F811"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [build-system]
 requires = ["hatchling"]
