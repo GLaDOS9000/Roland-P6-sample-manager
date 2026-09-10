@@ -40,7 +40,7 @@ from pyp6._theme_vars import (
 )
 from pyp6.audio.conversion import build_chop_file
 from pyp6.audio.info import get_audio_duration_seconds
-from pyp6.audio.playback import PYDUB_AVAILABLE, SD_OUTPUT_DEVICE
+from pyp6.audio.playback import PYDUB_AVAILABLE, play_audio
 from pyp6.audio.processing import (
     apply_micro_fade,
     ensure_mono_wav,
@@ -895,7 +895,7 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             if self.cycle_hz:
                 mono = data.mean(axis=1) if data.ndim > 1 else data
                 tone = wt_cycle_tone(mono, self.cycle_hz)
-                sd.play(tone, WT_SR, device=SD_OUTPUT_DEVICE)
+                play_audio(tone, WT_SR)
                 # The tone lasts far longer than the file it was built from,
                 # so the playhead has to follow the tone.
                 self._audible_seconds = len(tone) / float(WT_SR)
@@ -915,7 +915,7 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
                 peak = float(np.max(np.abs(segment))) if segment.size else 0.0
                 if peak > 0:
                     segment = segment * (0.98 / peak)
-            sd.play(segment, fs, device=SD_OUTPUT_DEVICE)
+            play_audio(segment, fs)
 
             self.is_playing = True
             self.preview_btn.text = "\u25a0 Stop"
@@ -2165,7 +2165,7 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
                     peak = float(np.max(np.abs(samples))) if samples.size else 0.0
                     if peak > 0:
                         samples = samples * (0.98 / peak)
-                sd.play(samples, rate, device=SD_OUTPUT_DEVICE)
+                play_audio(samples, rate)
             else:
                 data, fs = sf.read(self.current_audio_path, dtype="float32")
                 if data.ndim > 1 and not self.stereo_var.get():
@@ -2180,7 +2180,7 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
                     peak = float(np.max(np.abs(segment))) if segment.size else 0.0
                     if peak > 0:
                         segment = segment * (0.98 / peak)
-                sd.play(segment, fs, device=SD_OUTPUT_DEVICE)
+                play_audio(segment, fs)
 
             self.is_playing = True
             if hasattr(self, "browse_preview_btn"):

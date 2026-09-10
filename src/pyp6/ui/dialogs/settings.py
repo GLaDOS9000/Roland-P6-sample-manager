@@ -718,7 +718,11 @@ class SettingsDialog(tk.Toplevel):
 
     @staticmethod
     def _list_output_devices():
-        """Return (names, indices) for all devices with output channels."""
+        """Return (names, indices) for all devices with output channels.
+
+        Always queries PortAudio fresh — never cached — so the list reflects
+        the current set of connected devices at the moment of the call.
+        """
         try:
             import sounddevice as sd
 
@@ -735,27 +739,49 @@ class SettingsDialog(tk.Toplevel):
         return names, indices
 
     def _reload_output_device(self):
-        """Re-scan devices, apply the selected one, and update SD_OUTPUT_DEVICE."""
-        selected_name = self.device_var.get()
-        try:
-            pos = self._device_names.index(selected_name)
-            dev_idx = self._device_indices[pos]
-        except (ValueError, IndexError):
-            dev_idx = None
+        """Stop playback, re-scan devices, apply the selected one.
 
+        Calling sd.stop() before re-scanning is critical: PortAudio holds an
+        internal stream open after each sd.play(), and that stale stream is
+        what causes paInvalidDevice (-9986) after a hot-plug event even when
+        the correct device is selected.
+        """
         try:
             import sounddevice as sd
+
+            sd.stop()  # release any cached PortAudio stream first
+
+            # Rebuild the device list from scratch to pick up hot-plug changes.
+            self._device_names, self._device_indices = self._list_output_devices()
+            self._device_dd.options = self._device_names
+            self._device_dd._draw()
+
+            selected_name = self.device_var.get()
+            # If the previously selected device name still exists use it;
+            # otherwise fall back to the first valid device.
+            if selected_name not in self._device_names:
+                selected_name = self._device_names[0]
+                self.device_var.set(selected_name)
+
+            try:
+                pos = self._device_names.index(selected_name)
+                dev_idx = self._device_indices[pos]
+            except (ValueError, IndexError):
+                dev_idx = None
 
             if dev_idx is not None and dev_idx >= 0:
                 sd.check_output_settings(device=dev_idx)
                 _pb.SD_OUTPUT_DEVICE = dev_idx
                 name = sd.query_devices(dev_idx)["name"]
-                self._dev_status_lbl.config(text=f"Active: {name}", fg=FG_TEXT)
             else:
-                new = _pb._find_output_device()
-                _pb.SD_OUTPUT_DEVICE = new
-                name = sd.query_devices(new)["name"] if new is not None else "system default"
-                self._dev_status_lbl.config(text=f"Active: {name}", fg=FG_TEXT)
+                _pb.SD_OUTPUT_DEVICE = _pb._find_output_device()
+                dev_idx = _pb.SD_OUTPUT_DEVICE
+                name = (
+                    sd.query_devices(dev_idx)["name"] if dev_idx is not None else "system default"
+                )
+
+            self._dev_status_lbl.config(text=f"Active: {name}", fg=FG_TEXT)
+
         except Exception as exc:
             self._dev_status_lbl.config(text=f"Failed: {exc}", fg="#FF6B6B")
 
