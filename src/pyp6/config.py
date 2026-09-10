@@ -303,7 +303,22 @@ def save_drawn_library(library):
         with open(WAVEFORM_LIB_FILE, "w", encoding="utf-8") as f:
             json.dump(
                 {
-                    n: {"kind": "draw", "name": n, "a": e.get("a") or [], "b": e.get("b") or []}
+                    n: {
+                        "kind": "draw",
+                        "name": n,
+                        "a": e.get("a") or [],
+                        "b": e.get("b") or [],
+                        **(
+                            {}
+                            if not e.get("morph_skew")
+                            else {"morph_skew": round(float(e["morph_skew"]), 4)}
+                        ),
+                        **(
+                            {}
+                            if not e.get("morph_shape")
+                            else {"morph_shape": round(float(e["morph_shape"]), 4)}
+                        ),
+                    }
                     for n, e in library.items()
                 },
                 f,

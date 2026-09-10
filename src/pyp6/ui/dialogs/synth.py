@@ -71,6 +71,7 @@ from pyp6.synth.engine import (
 from pyp6.synth.waveforms import (
     WT_FAMILIES,
     WT_FAMILY_MAP,
+    apply_morph_curve,
     wt_family_entry,
     wt_load_cycle_file,
     wt_points_to_cycle,
@@ -124,8 +125,12 @@ class WaveformCreatorDialog(tk.Toplevel):
         self.result = None
         self.title("Waveform Creator")
         style_toplevel(self)
-        self.minsize(820, 580)
+        self.minsize(1200, 680)
+        self.geometry("1440x740")
 
+        # ------------------------------------------------------------------ #
+        # State                                                               #
+        # ------------------------------------------------------------------ #
         t = np.arange(self.POINTS) / float(self.POINTS)
         self.lanes = {
             "A": np.array((entry or {}).get("a") or self.PRESETS["Sine"](t), dtype=float),
@@ -151,6 +156,9 @@ class WaveformCreatorDialog(tk.Toplevel):
         self.root_note_var = tk.StringVar(value=cfg.get("note", "C2"))
         self.fine_tune_var = tk.IntVar(value=0)
         self.smooth_passes = tk.IntVar(value=0)
+        self.morph_skew_var = tk.DoubleVar(value=float((entry or {}).get("morph_skew") or 0.0))
+        self.morph_shape_var = tk.DoubleVar(value=float((entry or {}).get("morph_shape") or 0.0))
+
         for lane in ("A", "B"):
             self.freq_vars[lane].trace_add(
                 "write", lambda *_, ln=lane: self._recompute_and_redraw(ln)
@@ -160,7 +168,15 @@ class WaveformCreatorDialog(tk.Toplevel):
             )
         self.smooth_passes.trace_add("write", lambda *_: self._recompute_and_redraw_both())
         self.root_note_var.trace_add("write", lambda *_: self._redraw())
+        self.morph_skew_var.trace_add("write", lambda *_: self._on_morph_curve_change())
+        self.morph_shape_var.trace_add("write", lambda *_: self._on_morph_curve_change())
 
+        PRESET_NAMES = list(self.PRESETS.keys())
+        ROOT_NOTES = [midi_to_name(m) for m in range(12, 97)]  # C0–B7
+
+        # ------------------------------------------------------------------ #
+        # Head: name, lane selector, band-limit toggle                       #
+        # ------------------------------------------------------------------ #
         head = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
         head.pack(fill="x")
         name_lbl = tk.Label(head, text="Name:")
@@ -184,7 +200,7 @@ class WaveformCreatorDialog(tk.Toplevel):
             rb = tk.Radiobutton(
                 head, text=f"Shape {lane}", variable=self.active, value=lane, command=self._redraw
             )
-            style_checkbutton(rb)  # same styling helper the Mode radios use
+            style_checkbutton(rb)
             rb.pack(side="left", padx=(0, 10))
         cb = tk.Checkbutton(
             head,
@@ -201,8 +217,33 @@ class WaveformCreatorDialog(tk.Toplevel):
             "hold, and that difference is what you will hear.",
         )
 
-        panel = RoundedPanel(
-            self,
+        # ------------------------------------------------------------------ #
+        # Body: left (Cycle) | right (Wavetable)                             #
+        # ------------------------------------------------------------------ #
+        body = tk.Frame(self, bg=BG_DARK)
+        body.pack(fill="both", expand=True, padx=14)
+
+        left_col = tk.Frame(body, bg=BG_DARK)
+        right_col = tk.Frame(body, bg=BG_DARK)
+
+        _COL_GAP = 10
+        _LEFT_FRAC = 0.35  # left gets 35 %, right gets 65 %
+
+        def _layout_body(event=None):
+            w = body.winfo_width()
+            h = body.winfo_height()
+            if w < 2 or h < 2:
+                return
+            lw = max(1, int(w * _LEFT_FRAC) - _COL_GAP // 2)
+            rw = max(1, w - lw - _COL_GAP)
+            left_col.place(x=0, y=0, width=lw, height=h)
+            right_col.place(x=lw + _COL_GAP, y=0, width=rw, height=h)
+
+        body.bind("<Configure>", lambda e: _layout_body())
+
+        # -- Left: Cycle panel (drawing canvas) --
+        cycle_panel = RoundedPanel(
+            left_col,
             title="Cycle",
             parent_bg=BG_DARK,
             panel_bg=BG_PANEL,
@@ -211,49 +252,28 @@ class WaveformCreatorDialog(tk.Toplevel):
             body_padx=10,
             body_pady=(24, 8),
         )
-        panel.pack(fill="both", expand=True, padx=14)
+        cycle_panel.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(
-            panel.body, bg=WAVE_BG, highlightthickness=0, height=260, cursor="pencil"
+            cycle_panel.body, bg=WAVE_BG, highlightthickness=0, height=200, cursor="pencil"
         )
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Button-1>", self._on_press)
         self.canvas.bind("<B1-Motion>", self._on_drag)
         self.canvas.bind("<ButtonRelease-1>", self._on_release)
         self.canvas.bind("<Configure>", lambda e: self._redraw())
-
-        self.info = tk.Label(panel.body, text="", anchor="w")
+        self.info = tk.Label(cycle_panel.body, text="", anchor="w")
         style_label(self.info, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.info.pack(fill="x", pady=(4, 0))
 
-        morph_sep = tk.Label(panel.body, text="A \u2192 B morph", anchor="w")
-        style_label(morph_sep, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 7))
-        morph_sep.pack(fill="x", pady=(8, 0))
-        self.morph_strip = tk.Canvas(panel.body, bg=WAVE_BG, highlightthickness=0, height=100)
-        self.morph_strip.pack(fill="x", pady=(2, 4))
-        self.morph_strip.bind("<Configure>", lambda e: self._draw_morph_strip())
-        add_tooltip(
-            self.morph_strip,
-            "Live preview of all morph steps from shape A to shape B.\n"
-            "Nearest curve = A, furthest = B.",
-        )
-
-        # ------------------------------------------------------------------ #
-        # Row A: per-lane controls (shape dropdown, freq, phase)             #
-        # ------------------------------------------------------------------ #
-        lane_panel = tk.Frame(self, padx=14, bg=BG_DARK)
+        # -- Left: per-lane shape controls --
+        lane_panel = tk.Frame(left_col, bg=BG_DARK)
         lane_panel.pack(fill="x", pady=(6, 0))
-
-        PRESET_NAMES = list(self.PRESETS.keys())
-        ROOT_NOTES = [midi_to_name(m) for m in range(12, 97)]  # C0–B7
-
         for lane in ("A", "B"):
             row = tk.Frame(lane_panel, bg=BG_DARK)
             row.pack(fill="x", pady=1)
-
             lbl = tk.Label(row, text=f"Shape {lane}", width=8, anchor="w")
             style_label(lbl, font=(UI_FAMILY, 8, "bold"))
             lbl.pack(side="left")
-
             shape_dd = RoundedDropdown(
                 row,
                 self.shape_vars[lane],
@@ -266,7 +286,6 @@ class WaveformCreatorDialog(tk.Toplevel):
             )
             shape_dd.pack(side="left", padx=(0, 4))
             add_tooltip(shape_dd, f"Load a preset waveform into shape {lane}.")
-
             load_btn = RoundedButton(
                 row,
                 text="Load\u2026",
@@ -280,7 +299,6 @@ class WaveformCreatorDialog(tk.Toplevel):
             )
             load_btn.pack(side="left", padx=(0, 10))
             add_tooltip(load_btn, f"Load a single-cycle WAV file into shape {lane}.")
-
             tk.Label(row, text="Freq \u00d7", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
                 side="left"
             )
@@ -303,7 +321,6 @@ class WaveformCreatorDialog(tk.Toplevel):
             )
             freq_sb.pack(side="left", padx=(2, 8))
             add_tooltip(freq_sb, f"Frequency multiplier for shape {lane} — updates live.")
-
             tk.Label(row, text="Phase", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
                 side="left"
             )
@@ -329,17 +346,14 @@ class WaveformCreatorDialog(tk.Toplevel):
             )
             add_tooltip(phase_sb, f"Phase shift in degrees for shape {lane} — updates live.")
 
-        # ------------------------------------------------------------------ #
-        # Row B: root note, fine tune, actions                               #
-        # ------------------------------------------------------------------ #
-        ctrl_row = tk.Frame(self, padx=14, bg=BG_DARK)
-        ctrl_row.pack(fill="x", pady=(4, 8))
-
-        tk.Label(ctrl_row, text="\u266a Root", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+        # -- Left: root note, smooth, swap --
+        ctrl_left = tk.Frame(left_col, bg=BG_DARK)
+        ctrl_left.pack(fill="x", pady=(4, 8))
+        tk.Label(ctrl_left, text="\u266a Root", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
             side="left"
         )
         root_dd = RoundedDropdown(
-            ctrl_row,
+            ctrl_left,
             self.root_note_var,
             ROOT_NOTES,
             parent_bg=BG_DARK,
@@ -349,12 +363,11 @@ class WaveformCreatorDialog(tk.Toplevel):
         )
         root_dd.pack(side="left", padx=(4, 2))
         add_tooltip(root_dd, "Root note for band-limit preview and audio sweep.")
-
-        tk.Label(ctrl_row, text="Fine", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+        tk.Label(ctrl_left, text="Fine", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
             side="left", padx=(8, 0)
         )
         fine_sb = tk.Spinbox(
-            ctrl_row,
+            ctrl_left,
             textvariable=self.fine_tune_var,
             from_=-99,
             to=99,
@@ -370,30 +383,15 @@ class WaveformCreatorDialog(tk.Toplevel):
             font=(UI_FAMILY, 8),
         )
         fine_sb.pack(side="left", padx=(2, 2))
-        tk.Label(ctrl_row, text="\u00a2", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
-            side="left", padx=(0, 16)
+        tk.Label(ctrl_left, text="\u00a2", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left", padx=(0, 12)
         )
         add_tooltip(fine_sb, "Fine tune in cents (±99¢) applied to the audio sweep preview.")
-
-        swap_btn = RoundedButton(
-            ctrl_row,
-            text="Swap A \u21c4 B",
-            command=self._swap_lanes,
-            bg=BG_INPUT,
-            fg=FG_TEXT,
-            parent_bg=BG_DARK,
-            width=90,
-            height=24,
-            font=(UI_FAMILY, 8),
-        )
-        swap_btn.pack(side="left", padx=2)
-        add_tooltip(swap_btn, "Swaps shapes A and B — reverses the morph direction.")
-
-        tk.Label(ctrl_row, text="Smooth", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
-            side="left", padx=(16, 0)
+        tk.Label(ctrl_left, text="Smooth", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left"
         )
         smooth_sb = tk.Spinbox(
-            ctrl_row,
+            ctrl_left,
             textvariable=self.smooth_passes,
             from_=0,
             to=20,
@@ -408,15 +406,119 @@ class WaveformCreatorDialog(tk.Toplevel):
             highlightbackground=BORDER_COLOR,
             font=(UI_FAMILY, 8),
         )
-        smooth_sb.pack(side="left", padx=(2, 2))
+        smooth_sb.pack(side="left", padx=(2, 12))
         add_tooltip(
             smooth_sb,
             "Smoothing passes applied to both shapes — 0 = off.\n"
             "Attenuates high harmonics. Fully reversible: set back to 0 to restore.",
         )
+        swap_btn = RoundedButton(
+            ctrl_left,
+            text="Swap A \u21c4 B",
+            command=self._swap_lanes,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+            height=24,
+            font=(UI_FAMILY, 8),
+        )
+        swap_btn.pack(side="left", padx=2)
+        add_tooltip(swap_btn, "Swaps shapes A and B — reverses the morph direction.")
 
+        # -- Right: Wavetable panel (morph strip + curve thumbnail) --
+        morph_panel = RoundedPanel(
+            right_col,
+            title="Wavetable",
+            parent_bg=BG_DARK,
+            panel_bg=BG_PANEL,
+            radius=12,
+            title_font=(UI_FAMILY, 9, "bold"),
+            body_padx=10,
+            body_pady=(24, 8),
+        )
+        morph_panel.pack(fill="both", expand=True)
+        self.morph_strip = tk.Canvas(morph_panel.body, bg=WAVE_BG, highlightthickness=0, height=160)
+        self.morph_strip.pack(fill="both", expand=True)
+        self.morph_strip.bind("<Configure>", lambda e: self._draw_morph_strip())
+        add_tooltip(
+            self.morph_strip,
+            "Live preview of all morph steps from shape A to shape B.\n"
+            "Nearest curve = A, furthest = B.",
+        )
+        curve_sep = tk.Label(morph_panel.body, text="Morph curve", anchor="w")
+        style_label(curve_sep, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 7))
+        curve_sep.pack(fill="x", pady=(8, 0))
+        self.curve_canvas = tk.Canvas(morph_panel.body, bg=WAVE_BG, highlightthickness=0, height=70)
+        self.curve_canvas.pack(fill="x", pady=(2, 4))
+        self.curve_canvas.bind("<Configure>", lambda e: self._draw_curve_thumbnail())
+        add_tooltip(
+            self.curve_canvas,
+            "Shape of the A\u2192B transition across the wavetable.\n"
+            "Diagonal = linear.  Curve = shaped by Skew and Shape below.",
+        )
+
+        # -- Right: morph curve params + play --
+        ctrl_right = tk.Frame(right_col, bg=BG_DARK)
+        ctrl_right.pack(fill="x", pady=(4, 8))
+        tk.Label(ctrl_right, text="Skew", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left"
+        )
+        skew_sb = tk.Spinbox(
+            ctrl_right,
+            textvariable=self.morph_skew_var,
+            from_=-2.0,
+            to=2.0,
+            increment=0.1,
+            width=5,
+            format="%.1f",
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            buttonbackground=BG_INPUT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            font=(UI_FAMILY, 8),
+        )
+        skew_sb.pack(side="left", padx=(2, 10))
+        add_tooltip(
+            skew_sb,
+            "Ease-in / ease-out:\n"
+            "  0 = linear\n"
+            "+2 = strong ease-in  (morph spends more time near A)\n"
+            "\u22122 = strong ease-out (morph jumps to B quickly)",
+        )
+        tk.Label(ctrl_right, text="Shape", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left"
+        )
+        shape_sb = tk.Spinbox(
+            ctrl_right,
+            textvariable=self.morph_shape_var,
+            from_=-2.0,
+            to=2.0,
+            increment=0.1,
+            width=5,
+            format="%.1f",
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            buttonbackground=BG_INPUT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            font=(UI_FAMILY, 8),
+        )
+        shape_sb.pack(side="left", padx=(2, 10))
+        add_tooltip(
+            shape_sb,
+            "S-curve / Reverse-S:\n"
+            "  0 = linear\n"
+            "+2 = strong S-curve   (frames cluster at A and B extremes)\n"
+            "\u22122 = strong reverse-S (frames cluster in the middle of the sweep)",
+        )
         self.prev_btn = RoundedButton(
-            ctrl_row,
+            ctrl_right,
             text="\u25b6",
             command=self._toggle_preview,
             bg=BTN_BLUE,
@@ -429,12 +531,12 @@ class WaveformCreatorDialog(tk.Toplevel):
         self.prev_btn.pack(side="right", padx=(2, 0))
         add_tooltip(self.prev_btn, "Plays the A\u2192B morph sweep at the selected root note.")
 
+        # ------------------------------------------------------------------ #
+        # Foot: delete / cancel / apply                                      #
+        # ------------------------------------------------------------------ #
         foot = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
         foot.pack(fill="x")
         if entry:
-            # Only when editing something that already exists - the library
-            # would otherwise fill up with abandoned experiments and offer no
-            # way out.
             self.btn_delete = RoundedButton(
                 foot,
                 text="Delete",
@@ -477,6 +579,59 @@ class WaveformCreatorDialog(tk.Toplevel):
             self.grab_set()
         except tk.TclError:
             pass
+
+    # ----------------------------------------------------------- morph curve
+    def _on_morph_curve_change(self):
+        """Debounced: redraw thumbnail and morph strip when curve params change."""
+        attr = "_mc_job"
+        job = getattr(self, attr, None)
+        if job:
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                pass
+        try:
+            setattr(self, attr, self.after(25, self._exec_morph_curve_change))
+        except (tk.TclError, ValueError):
+            pass
+
+    def _exec_morph_curve_change(self):
+        self._mc_job = None
+        try:
+            self._draw_curve_thumbnail()
+            self._draw_morph_strip()
+        except (tk.TclError, ValueError):
+            pass
+
+    def _draw_curve_thumbnail(self):
+        """Draws the current morph curve shape on self.curve_canvas."""
+        c = self.curve_canvas
+        c.delete("all")
+        w = max(2, c.winfo_width())
+        h = max(2, c.winfo_height())
+        if w < 10 or h < 10:
+            return
+        skew = self.morph_skew_var.get()
+        shape = self.morph_shape_var.get()
+        # Reference diagonal (linear)
+        ref = blend_colors(WAVE_BG, FG_MUTED, 0.35)
+        c.create_line(0, h, w, 0, fill=ref, dash=(2, 3))
+        # Axis tick marks at 0.25 / 0.5 / 0.75
+        for frac in (0.25, 0.5, 0.75):
+            x = int(frac * w)
+            y = int((1.0 - frac) * h)
+            c.create_line(x - 2, y, x + 2, y, fill=ref)
+        # Curve
+        n = 80
+        m_arr = np.linspace(0.0, 1.0, n)
+        ms_arr = apply_morph_curve(m_arr, skew, shape)
+        pts = []
+        for i in range(n):
+            pts += [m_arr[i] * w, (1.0 - ms_arr[i]) * h]
+        c.create_line(*pts, fill=ACCENT_BLUE, width=2)
+        # Labels
+        c.create_text(3, h - 3, text="A", anchor="sw", fill=FG_MUTED, font=(UI_FAMILY, 7))
+        c.create_text(w - 3, 3, text="B", anchor="ne", fill=FG_MUTED, font=(UI_FAMILY, 7))
 
     # ----------------------------------------------------------- drawing
     def _geom(self):
@@ -732,11 +887,14 @@ class WaveformCreatorDialog(tk.Toplevel):
             return
         w, h = geo[0], geo[1]
         shown = self._MORPH_STEPS
+        skew = self.morph_skew_var.get()
+        shape = self.morph_shape_var.get()
         a, b = self.lanes["A"], self.lanes["B"]
         shapes = []
         for j in range(shown):
             m = j / (shown - 1)
-            vals = a * (1.0 - m) + b * m
+            m_s = float(apply_morph_curve(m, skew, shape))
+            vals = a * (1.0 - m_s) + b * m_s
             peak = np.max(np.abs(vals))
             shapes.append(vals / peak if peak > 1e-12 else vals)
         line = readable_on(WAVE_COLOR, WAVE_BG, 7.0)
@@ -761,10 +919,13 @@ class WaveformCreatorDialog(tk.Toplevel):
         if geo is None:
             return
         shown = self._MORPH_STEPS
+        skew = self.morph_skew_var.get()
+        shape = self.morph_shape_var.get()
         a, b = self.lanes["A"], self.lanes["B"]
         idx = int(min(shown - 1, max(0, round(frac * (shown - 1)))))
         m = idx / (shown - 1)
-        vals = a * (1.0 - m) + b * m
+        m_s = float(apply_morph_curve(m, skew, shape))
+        vals = a * (1.0 - m_s) + b * m_s
         peak = np.max(np.abs(vals))
         vals = vals / peak if peak > 1e-12 else vals
         pts, _ox, _oy = self._strip_points(vals, idx, shown, geo)
@@ -817,6 +978,7 @@ class WaveformCreatorDialog(tk.Toplevel):
             self.info.config(text=self.info.cget("text") + "\n" + note)
 
         self._draw_morph_strip()
+        self._draw_curve_thumbnail()
 
     # ----------------------------------------------------------- preview
     def _toggle_preview(self):
@@ -871,7 +1033,9 @@ class WaveformCreatorDialog(tk.Toplevel):
 
     # ----------------------------------------------------------- result
     def _entry(self):
-        return {
+        skew = round(self.morph_skew_var.get(), 4)
+        shape = round(self.morph_shape_var.get(), 4)
+        d = {
             "kind": "draw",
             "name": self.name_var.get().strip() or "Custom",
             # Rounded on the way out: a preset folder is meant to be
@@ -880,6 +1044,11 @@ class WaveformCreatorDialog(tk.Toplevel):
             "a": [round(float(v), 4) for v in self.lanes["A"]],
             "b": [round(float(v), 4) for v in self.lanes["B"]],
         }
+        if skew:
+            d["morph_skew"] = skew
+        if shape:
+            d["morph_shape"] = shape
+        return d
 
     def _apply(self):
         self._stop_preview()

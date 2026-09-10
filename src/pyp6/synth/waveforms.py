@@ -278,11 +278,39 @@ def wt_points_to_cycle(points, s):
     return w / peak if peak > 1e-12 else w
 
 
+def apply_morph_curve(m, skew=0.0, shape=0.0):
+    """Parametric morph curve applied to blend position m ∈ [0, 1].
+
+    *skew*  controls ease-in / ease-out via a power curve: positive values
+    ease-in (slow start), negative values ease-out (fast start). Formula:
+    u = m^(2^skew).
+
+    *shape* controls S-curve / reverse-S via the symmetric formula
+    u^q / (u^q + (1-u)^q) where q = 2^shape. Positive values produce an
+    S-curve (frames cluster at both extremes), negative values a reverse-S
+    (frames cluster in the middle).
+
+    Both default to 0 (linear). m can be a scalar or a NumPy array.
+    """
+    u = np.clip(np.asarray(m, dtype=float), 0.0, 1.0)
+    if skew != 0.0:
+        u = u ** (2.0 ** float(skew))
+    if shape != 0.0:
+        q = 2.0 ** float(shape)
+        uq = u**q
+        omq = (1.0 - u) ** q
+        denom = uq + omq
+        u = np.where(denom > 1e-12, uq / denom, u)
+    return u
+
+
 def wt_drawn_family(entry):
     """Builds a render function for a hand-drawn family."""
     name = entry.get("name") or "Custom"
     pa = entry.get("a") or []
     pb = entry.get("b") or pa
+    skew = float(entry.get("morph_skew") or 0.0)
+    shape = float(entry.get("morph_shape") or 0.0)
 
     def render(s, m, f0, _cache={}):
         key = (s.L, s.R, s.h)
@@ -290,8 +318,9 @@ def wt_drawn_family(entry):
             _cache.clear()
             _cache[key] = (wt_points_to_cycle(pa, s), wt_points_to_cycle(pb, s))
         ca, cb = _cache[key]
-        w = ca * (1.0 - m) + cb * m
-        return w, f"{name} {m:.2f}"
+        m_s = float(apply_morph_curve(m, skew, shape))
+        w = ca * (1.0 - m_s) + cb * m_s
+        return w, f"{name} {m_s:.2f}"
 
     return render
 
