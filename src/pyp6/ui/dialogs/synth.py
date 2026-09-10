@@ -201,6 +201,18 @@ class WaveformCreatorDialog(tk.Toplevel):
         style_label(self.info, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.info.pack(fill="x", pady=(4, 0))
 
+        morph_sep = tk.Label(panel.body, text="A \u2192 B morph", anchor="w")
+        style_label(morph_sep, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 7))
+        morph_sep.pack(fill="x", pady=(8, 0))
+        self.morph_strip = tk.Canvas(panel.body, bg=WAVE_BG, highlightthickness=0, height=70)
+        self.morph_strip.pack(fill="x", pady=(2, 4))
+        self.morph_strip.bind("<Configure>", lambda e: self._draw_morph_strip())
+        add_tooltip(
+            self.morph_strip,
+            "Live preview of all morph steps from shape A to shape B.\n"
+            "Nearest curve = A, furthest = B.",
+        )
+
         tools = tk.Frame(self, padx=14, pady=8, bg=BG_DARK)
         tools.pack(fill="x")
         for label in self.PRESETS:
@@ -478,6 +490,40 @@ class WaveformCreatorDialog(tk.Toplevel):
         s = WTSynth(one, 1, max(1, min(h, one // 2)))
         return wt_points_to_cycle(values, s), h, min(h, self.POINTS // 2)
 
+    _MORPH_STEPS = 7  # number of waveforms shown in the morph strip
+
+    def _draw_morph_strip(self):
+        """Depth-stacked morph strip: A at front (bright), B at back (faded)."""
+        c = self.morph_strip
+        c.delete("all")
+        w = c.winfo_width()
+        h = c.winfo_height()
+        if w < 10 or h < 10:
+            return
+        n = self._MORPH_STEPS
+        a = self.lanes["A"]
+        b = self.lanes["B"]
+        mid = h / 2
+        amp = mid - 4
+        step = max(1, len(a) // 400)
+        line_col = readable_on(WAVE_COLOR, WAVE_BG, 7.0)
+        # draw back→front so nearer curves occlude farther ones
+        for idx in range(n - 1, -1, -1):
+            m = idx / (n - 1)
+            vals = a * (1.0 - m) + b * m
+            idxs = range(0, len(vals), step)
+            pts = []
+            for i in idxs:
+                pts += [i / (len(vals) - 1) * w, mid - vals[i] * amp]
+            fade = 0.6 * m  # A is fully opaque, B is most faded
+            col = blend_colors(line_col, WAVE_BG, fade)
+            # fill to bottom so nearer curves hide what's behind them
+            poly = pts + [pts[-2], h, pts[0], h]
+            c.create_polygon(*poly, fill=WAVE_BG, outline="")
+            c.create_line(*pts, fill=col, width=2 if idx == 0 else 1)
+        c.create_text(4, h - 2, text="A", anchor="sw", fill=FG_MUTED, font=(UI_FAMILY, 7))
+        c.create_text(w - 4, 2, text="B", anchor="ne", fill=FG_MUTED, font=(UI_FAMILY, 7))
+
     def _redraw(self):
         c = self.canvas
         c.delete("all")
@@ -526,6 +572,8 @@ class WaveformCreatorDialog(tk.Toplevel):
         note = getattr(self, "_loaded_note", None)
         if note:
             self.info.config(text=self.info.cget("text") + "\n" + note)
+
+        self._draw_morph_strip()
 
     # ----------------------------------------------------------- preview
     def _toggle_preview(self):
