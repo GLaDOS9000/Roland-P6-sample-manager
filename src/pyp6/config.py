@@ -441,24 +441,8 @@ def verify_preset_folder(preset_dir):
 
 
 def apply_saved_ffmpeg_overrides():
-    """Applies any manually-configured ffmpeg/ffprobe paths from Settings on
-    top of the auto-detected ones from startup. Called once at launch,
-    before the pydub/ffmpeg dependency check, so a working manual override
-    from a previous session doesn't get flagged as missing."""
-    from pyp6.audio import playback as _pb
-
-    if not _pb.PYDUB_AVAILABLE:
-        return
-    from pydub import AudioSegment
-
-    ffmpeg_override = load_ffmpeg_override()
-    ffprobe_override = load_ffprobe_override()
-    if ffmpeg_override and os.path.exists(ffmpeg_override):
-        AudioSegment.converter = ffmpeg_override
-        AudioSegment.ffmpeg = ffmpeg_override
-        _pb.FFMPEG_AVAILABLE = True
-    if ffprobe_override and os.path.exists(ffprobe_override):
-        AudioSegment.ffprobe = ffprobe_override
+    """No-op: ffmpeg is not required with pedalboard."""
+    pass
 
 
 def apply_saved_storage_threshold():

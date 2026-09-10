@@ -168,35 +168,22 @@ def check_startup_dependencies(root):
     finding out piecemeal via different error messages the first time each
     affected feature is touched."""
     import pyp6.audio.playback as _pb
-    from pyp6.audio.playback import FFMPEG_AVAILABLE, PYDUB_AVAILABLE
+    from pyp6.audio.playback import AUDIO_AVAILABLE
     from pyp6.ui.dialogs_common import dark_showwarning
 
-    if not PYDUB_AVAILABLE:
+    if not AUDIO_AVAILABLE:
         dark_showwarning(
-            "pydub not found",
-            "The Python package 'pydub' was not found.\n\n"
+            "pedalboard not found",
+            "The Python package 'pedalboard' was not found.\n\n"
             "The following will not work:\n"
             "- Sample rate, pitch and mono conversion on export\n"
             "- The Chop feature (building multisamples)\n"
             "- MP3 files (loading, previewing, length display)\n\n"
             "WAV files can still be loaded and exported unchanged.\n"
-            "Install with: pip install pydub",
+            "Install with: pip install pedalboard",
             parent=root,
         )
-        _pb._pydub_warning_shown = True  # already told them - don't nag again per-feature
-    elif not FFMPEG_AVAILABLE:
-        dark_showwarning(
-            "ffmpeg not found",
-            "pydub is installed, but ffmpeg was not found (neither on PATH "
-            "nor at /usr/bin/ffmpeg).\n\n"
-            "The following will not work:\n"
-            "- MP3 files (loading, previewing, length display)\n"
-            "- Some internal format checks\n\n"
-            "WAV files including rate/pitch/mono conversion and Chop usually still "
-            "work, since those don't require ffmpeg.\n"
-            "Install with e.g.: apt install ffmpeg / brew install ffmpeg",
-            parent=root,
-        )
+        _pb._audio_warning_shown = True
 
 
 def main():

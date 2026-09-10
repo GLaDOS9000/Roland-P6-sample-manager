@@ -16,11 +16,6 @@ try:
 except ImportError:
     sf = None
 
-try:
-    from pydub import AudioSegment
-except ImportError:
-    AudioSegment = None
-
 import pyp6.config as _cfg
 from pyp6._theme_vars import (
     ACCENT_BLUE,
@@ -39,9 +34,9 @@ from pyp6._theme_vars import (
     WAVE_BG,
     WAVE_COLOR,
 )
-from pyp6.audio.conversion import apply_pitch_shift, convert_to_wav_if_needed
+from pyp6.audio.conversion import convert_to_wav_if_needed
 from pyp6.audio.info import compute_truncate_fraction, get_wav_info
-from pyp6.audio.playback import PYDUB_AVAILABLE, play_audio, warn_pydub_missing_once
+from pyp6.audio.playback import AUDIO_AVAILABLE, play_audio
 from pyp6.config import save_last_sample_dir, wavetable_path
 from pyp6.constants import (
     BANKS,
@@ -612,8 +607,6 @@ class SampleSlot:
         self.pitch_entry.insert(0, str(value))
         self.update_warning()
         self.app.update_storage_display()
-        if value != 0:
-            warn_pydub_missing_once()
 
     def pitch_step_down(self):
         self._set_pitch(self.pitch_cents.get() - PITCH_STEP_CENTS)
@@ -657,7 +650,7 @@ class SampleSlot:
             dark_showerror(
                 "Unsupported File",
                 f"'{os.path.basename(path)}' could not be converted to WAV and "
-                "cannot be used.\n\nMP3 support requires pydub + ffmpeg.",
+                "cannot be used.\n\nMP3 support requires pedalboard.",
             )
             return
         self.filepath = path
@@ -917,19 +910,12 @@ class SampleSlot:
         self.update_warning()
         if hasattr(self.app, "update_storage_display"):
             self.app.update_storage_display()
-        if self.mono_var.get():
-            warn_pydub_missing_once()
+        pass  # pedalboard handles mono conversion at export time
 
     def on_rate_changed(self, _value=None):
         self.update_warning()
         if hasattr(self.app, "update_storage_display"):
             self.app.update_storage_display()
-        try:
-            _, orig_rate, _ = get_wav_info(self.filepath) if self.filepath else (None, None, None)
-        except Exception:
-            orig_rate = None
-        if orig_rate is not None and self.target_rate.get() != orig_rate:
-            warn_pydub_missing_once()
 
     def _current_max_seconds(self):
         """Max sample length this pad's current target rate allows (based on
@@ -1105,18 +1091,27 @@ class SampleSlot:
 
         try:
             sd.stop()
-            if needs_conversion and PYDUB_AVAILABLE:
-                audio = AudioSegment.from_file(self.filepath)
+            if needs_conversion and AUDIO_AVAILABLE:
+                import pedalboard as _pb_mod
+                from pedalboard.io import AudioFile
+
+                from pyp6.audio.conversion import apply_pitch_shift as _pitch_shift
+
+                with AudioFile(self.filepath) as f:
+                    audio = f.read(f.frames)  # (channels, samples) float32
+                    file_sr = f.samplerate
+
                 if cents:
-                    audio = apply_pitch_shift(audio, cents)
-                if force_mono and audio.channels > 1:
-                    audio = audio.set_channels(1)
-                audio = audio.set_frame_rate(rate)
-                samples = np.array(audio.get_array_of_samples()).astype(np.float32)
-                max_val = float(1 << (8 * audio.sample_width - 1))
-                samples /= max_val
-                if audio.channels > 1:
-                    samples = samples.reshape((-1, audio.channels))
+                    audio = _pitch_shift(audio, file_sr, cents)
+                if force_mono and audio.shape[0] > 1:
+                    audio = audio.mean(axis=0, keepdims=True)
+                if rate != file_sr:
+                    audio = _pb_mod.Resample(target_sample_rate=rate)(audio, file_sr)
+
+                # sounddevice expects (samples, channels) or (samples,) for mono
+                samples = audio.T
+                if samples.ndim > 1 and samples.shape[1] == 1:
+                    samples = samples[:, 0]
                 self._play_buffer(samples, rate)
             else:
                 # Nothing to convert (or pydub unavailable) - play as-is,

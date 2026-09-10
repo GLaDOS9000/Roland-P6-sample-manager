@@ -1,6 +1,5 @@
 """Settings and About dialogs: SettingsDialog, AboutDialog."""
 
-import os
 import tkinter as tk
 
 import pyp6.audio.playback as _pb
@@ -19,15 +18,12 @@ from pyp6._theme_vars import (
     FG_TEXT,
     THEME,
 )
-from pyp6.audio.playback import PYDUB_AVAILABLE
 from pyp6.config import (
     apply_saved_storage_threshold,
     clear_temp_folder,
     get_temp_folder_size,
     load_default_autoplay,
     load_default_slices,
-    load_ffmpeg_override,
-    load_ffprobe_override,
     load_storage_warning_mb,
     save_config_value,
 )
@@ -53,11 +49,6 @@ from pyp6.ui.dialogs_common import (
     style_toplevel,
 )
 from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel
-
-try:
-    from pydub import AudioSegment
-except ImportError:
-    AudioSegment = None
 
 
 class AboutDialog(tk.Toplevel):
@@ -300,8 +291,8 @@ class SettingsDialog(tk.Toplevel):
         # 40px taller than the content used to need - the Appearance panel
         # gained the tooltip row, and this window has no scrolling, so the
         # Save/Close row at the bottom would otherwise be pushed off-screen.
-        self.geometry("620x800")
-        self.minsize(620, 800)
+        self.geometry("620x650")
+        self.minsize(620, 650)
         style_toplevel(self)
 
         outer = tk.Frame(self, bg=BG_DARK, padx=16, pady=16)
@@ -400,91 +391,6 @@ class SettingsDialog(tk.Toplevel):
             "Short explanations that appear when you hover over a button or "
             "waveform. Turn this off once you know your way around.",
         )
-
-        # ----- Audio components -----
-        comp_panel = RoundedPanel(
-            outer,
-            title="Audio Components (pydub / ffmpeg)",
-            parent_bg=BG_DARK,
-            panel_bg=BG_PANEL,
-            border=BORDER_LIGHT,
-            radius=14,
-            title_fg=ACCENT_BLUE,
-        )
-        comp_panel.pack(fill="x", pady=(0, 12))
-
-        # Lazy import: dnd helpers are registered at startup in __main__.
-        from pyp6._about_helpers import dnd_is_working, dnd_status_text
-
-        dnd_row = tk.Frame(comp_panel.body, bg=BG_PANEL)
-        dnd_row.pack(fill="x", pady=(0, 8))
-        dnd_lbl = tk.Label(dnd_row, text=f"Drag & drop onto pads: {dnd_status_text()}", anchor="w")
-        style_label(
-            dnd_lbl,
-            bg=BG_PANEL,
-            fg=(FG_TEXT if dnd_is_working() else FG_MUTED),
-            font=(UI_FAMILY, 9),
-        )
-        dnd_lbl.pack(side="left")
-
-        ffmpeg_row = tk.Frame(comp_panel.body, bg=BG_PANEL)
-        ffmpeg_row.pack(fill="x")
-        ffmpeg_lbl = tk.Label(ffmpeg_row, text="ffmpeg path:", width=12, anchor="w")
-        style_label(ffmpeg_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
-        ffmpeg_lbl.pack(side="left")
-        self.ffmpeg_entry = tk.Entry(
-            ffmpeg_row,
-            bg=BG_INPUT,
-            fg=FG_TEXT,
-            insertbackground=FG_TEXT,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=BORDER_COLOR,
-            highlightcolor=ACCENT_BLUE,
-            font=(UI_FAMILY, 9),
-        )
-        current_ffmpeg = (
-            load_ffmpeg_override() or getattr(AudioSegment, "converter", "")
-            if PYDUB_AVAILABLE
-            else ""
-        )
-        self.ffmpeg_entry.insert(0, current_ffmpeg or "")
-        self.ffmpeg_entry.pack(side="left", fill="x", expand=True, padx=6)
-
-        ffprobe_row = tk.Frame(comp_panel.body, bg=BG_PANEL)
-        ffprobe_row.pack(fill="x", pady=(6, 0))
-        ffprobe_lbl = tk.Label(ffprobe_row, text="ffprobe path:", width=12, anchor="w")
-        style_label(ffprobe_lbl, bg=BG_PANEL, font=(UI_FAMILY, 9))
-        ffprobe_lbl.pack(side="left")
-        self.ffprobe_entry = tk.Entry(
-            ffprobe_row,
-            bg=BG_INPUT,
-            fg=FG_TEXT,
-            insertbackground=FG_TEXT,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=BORDER_COLOR,
-            highlightcolor=ACCENT_BLUE,
-            font=(UI_FAMILY, 9),
-        )
-        current_ffprobe = (
-            load_ffprobe_override() or getattr(AudioSegment, "ffprobe", "")
-            if PYDUB_AVAILABLE
-            else ""
-        )
-        self.ffprobe_entry.insert(0, current_ffprobe or "")
-        self.ffprobe_entry.pack(side="left", fill="x", expand=True, padx=6)
-
-        hint = tk.Label(
-            comp_panel.body,
-            text="Leave blank for automatic detection. Only fill in if ffmpeg/ffprobe "
-            "aren't found automatically.",
-            anchor="w",
-            justify="left",
-            wraplength=560,
-        )
-        style_label(hint, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 8))
-        hint.pack(fill="x", pady=(6, 0))
 
         # ----- Audio Output -----
         audio_out_panel = RoundedPanel(
@@ -708,8 +614,7 @@ class SettingsDialog(tk.Toplevel):
         about_btn.pack(side="left", padx=4)
         add_tooltip(
             about_btn,
-            "Version, author and the state of the optional components "
-            "(pydub, ffmpeg, drag & drop).",
+            "Version, author and the state of the optional components (pedalboard, drag & drop).",
         )
 
         self.transient(parent)
@@ -897,19 +802,6 @@ class SettingsDialog(tk.Toplevel):
             return
         save_config_value("storage_warning_mb", mb)
         apply_saved_storage_threshold()
-
-        # ffmpeg/ffprobe overrides
-        ffmpeg_path = self.ffmpeg_entry.get().strip()
-        ffprobe_path = self.ffprobe_entry.get().strip()
-        save_config_value("ffmpeg_path", ffmpeg_path)
-        save_config_value("ffprobe_path", ffprobe_path)
-        if PYDUB_AVAILABLE and AudioSegment is not None:
-            if ffmpeg_path and os.path.exists(ffmpeg_path):
-                AudioSegment.converter = ffmpeg_path
-                AudioSegment.ffmpeg = ffmpeg_path
-                _pb.FFMPEG_AVAILABLE = True
-            if ffprobe_path and os.path.exists(ffprobe_path):
-                AudioSegment.ffprobe = ffprobe_path
 
         if hasattr(self.app, "update_storage_display"):
             self.app.update_storage_display()

@@ -22,13 +22,7 @@ try:
 except ImportError:
     sd = None
 
-try:
-    from pydub import AudioSegment
-except ImportError:
-    AudioSegment = None
-
 from pyp6 import APP_VERSION
-from pyp6.audio.playback import PYDUB_AVAILABLE
 from pyp6.constants import (
     APP_AUTHOR,
     APP_NAME,
@@ -98,12 +92,6 @@ def collect_about_info():
     Also what the About box's Copy button puts on the clipboard, so a bug
     report can be pasted with the exact versions and paths involved -
     which is the whole reason the optional-dependency state is in here."""
-    # Re-read the live module attribute so that overrides applied in
-    # SettingsDialog are visible.
-    from pyp6.audio import playback as _pb
-
-    ffmpeg_avail = _pb.FFMPEG_AVAILABLE
-
     rows = []
     rows.append(("Version", APP_VERSION))
     rows.append(("Author", APP_AUTHOR))
@@ -120,24 +108,13 @@ def collect_about_info():
     rows.append(("NumPy", _module_version(np, "numpy")))
     rows.append(("soundfile", _module_version(sf, "soundfile")))
     rows.append(("sounddevice", _module_version(sd, "sounddevice")))
-    if PYDUB_AVAILABLE:
-        try:
-            import pydub as _pydub
+    try:
+        import pedalboard as _pb_mod
 
-            rows.append(("pydub", _module_version(_pydub, "pydub")))
-        except Exception:
-            rows.append(("pydub", "installed"))
-    else:
-        rows.append(("pydub", "not installed - Chop, MP3, rate/pitch/mono disabled"))
-    if ffmpeg_avail:
-        converter = None
-        try:
-            converter = AudioSegment.converter
-        except Exception:
-            pass
-        rows.append(("ffmpeg", str(converter) if converter else "found"))
-    else:
-        rows.append(("ffmpeg", "not found"))
+        pb_ver = getattr(_pb_mod, "__version__", "installed")
+        rows.append(("pedalboard", pb_ver))
+    except Exception:
+        rows.append(("pedalboard", "not installed --- Chop/MP3/conversion disabled"))
     rows.append(("Drag & drop", dnd_status_text()))
     rows.append(("Settings file", CONFIG_FILE))
     rows.append(("Temp folder", TEMP_DIR))

@@ -8,9 +8,8 @@ dependencies = [
     "sounddevice",
     "soundfile",
     "numpy",
-    "pydub",
+    "pedalboard",
     "tkinterdnd2",
-    "audioop-lts",
 ]
 
 [project.optional-dependencies]

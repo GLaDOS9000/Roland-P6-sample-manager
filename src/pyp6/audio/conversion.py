@@ -1,11 +1,15 @@
 """Audio format conversion: pitch shift, rate/mono/bit-depth, chop builder."""
 
+import os
 import uuid
 
+import numpy as np
+import pedalboard
+from pedalboard.io import AudioFile
+
 from pyp6.audio.info import get_wav_info, get_wav_sample_width
-from pyp6.audio.playback import PYDUB_AVAILABLE
-from pyp6.audio.processing import snap_ms_backward_to_zero
-from pyp6.config import safe_base_name, temp_path
+from pyp6.audio.playback import AUDIO_AVAILABLE
+from pyp6.config import temp_path
 from pyp6.constants import MAX_SECONDS
 
 
@@ -15,133 +19,184 @@ def pitch_speed_factor(cents):
     return 2.0 ** (cents / 1200.0)
 
 
-def apply_pitch_shift(audio_segment, cents):
-    """Pitch-shifts a pydub AudioSegment by `cents` using the classic
-    vari-speed trick."""
+def _detect_leading_silence_samples(audio_np, threshold_db=-50):
+    """Return sample index of first non-silent frame in a (channels, samples) array."""
+    threshold = 10 ** (threshold_db / 20)
+    per_sample_peak = np.abs(audio_np).max(axis=0)
+    nonsilent = np.where(per_sample_peak > threshold)[0]
+    return int(nonsilent[0]) if len(nonsilent) > 0 else 0
+
+
+def _normalize_audio(audio_np):
+    """Peak-normalize a (channels, samples) float32 array to [-1, 1]."""
+    peak = np.max(np.abs(audio_np))
+    return audio_np / peak if peak > 0 else audio_np
+
+
+def apply_pitch_shift(audio_np, sr, cents):
+    """Vari-speed pitch shift. Returns (channels, samples) float32 array
+    resampled so that when written at sr it plays pitch-shifted by cents."""
     if not cents:
-        return audio_segment
+        return audio_np
     factor = pitch_speed_factor(cents)
-    new_rate = int(audio_segment.frame_rate * factor)
-    if new_rate <= 0:
-        return audio_segment
-    shifted = audio_segment._spawn(audio_segment.raw_data, overrides={"frame_rate": new_rate})
-    return shifted.set_frame_rate(audio_segment.frame_rate)
+    new_sr = int(round(sr * factor))
+    if new_sr <= 0:
+        return audio_np
+    return pedalboard.Resample(target_sample_rate=new_sr)(audio_np, sr)
 
 
 def compute_export_ready_path(filepath, target_rate, pitch_cents=0, force_mono=False):
-    """Converts a sample to the target rate/pitch/mono, returning the path."""
-    if not filepath or not PYDUB_AVAILABLE:
+    """Return a path to a converted WAV ready for export to the P-6.
+    If no conversion is needed, returns filepath unchanged."""
+    if not filepath or not AUDIO_AVAILABLE:
         return filepath
-    from pydub import AudioSegment
-
     try:
         _, orig_rate, orig_channels = get_wav_info(filepath)
     except Exception:
         return filepath
     orig_sample_width = get_wav_sample_width(filepath) or 2
     needs_mono = force_mono and orig_channels > 1
-    needs_bit_depth_fix = orig_sample_width != 2  # P-6 requires 16-bit PCM
+    needs_bit_depth_fix = orig_sample_width != 2
     if target_rate == orig_rate and not pitch_cents and not needs_mono and not needs_bit_depth_fix:
         return filepath
-    audio = AudioSegment.from_wav(filepath)
-    if pitch_cents:
-        audio = apply_pitch_shift(audio, pitch_cents)
-    if needs_mono:
-        audio = audio.set_channels(1)
-    audio = audio.set_frame_rate(target_rate)
-    audio = audio.set_sample_width(2)  # always force 16-bit for the P-6
-    suffix = f"_{target_rate}Hz"
-    if pitch_cents:
-        suffix += f"_{pitch_cents:+d}c"
-    if needs_mono:
-        suffix += "_mono"
-    if needs_bit_depth_fix:
-        suffix += "_16bit"
-    out_path = temp_path(f"{safe_base_name(filepath)}{suffix}.wav")
-    audio.export(out_path, format="wav")
-    return out_path
+    try:
+        with AudioFile(filepath) as f:
+            audio = f.read(f.frames)  # (channels, samples) float32
+            sr = f.samplerate
+
+        if pitch_cents:
+            audio = apply_pitch_shift(audio, sr, pitch_cents)
+            # After vari-speed resample: write at orig sr to bake in pitch shift
+
+        if needs_mono:
+            audio = audio.mean(axis=0, keepdims=True)
+
+        if target_rate != sr:
+            audio = pedalboard.Resample(target_sample_rate=target_rate)(audio, sr)
+
+        suffix = f"_{target_rate}Hz"
+        if pitch_cents:
+            suffix += f"_{pitch_cents:+d}c"
+        if needs_mono:
+            suffix += "_mono"
+        if needs_bit_depth_fix:
+            suffix += "_16bit"
+
+        safe_name = os.path.splitext(os.path.basename(filepath))[0]
+        out_path = temp_path(f"{safe_name}{suffix}.wav")
+        with AudioFile(
+            out_path, "w", samplerate=target_rate, num_channels=audio.shape[0], bit_depth=16
+        ) as f:
+            f.write(audio)
+        return out_path
+    except Exception:
+        return filepath
 
 
 def convert_to_wav_if_needed(path):
+    """Convert non-WAV to a temp WAV. Returns (path, was_converted)."""
     if path.lower().endswith(".wav"):
         return path, False
-    if not PYDUB_AVAILABLE:
+    if not AUDIO_AVAILABLE:
         from pyp6.ui.dialogs_common import dark_showerror
 
-        dark_showerror("pydub missing", "MP3 conversion requires pydub + ffmpeg.")
+        dark_showerror(
+            "pedalboard missing",
+            "MP3/format conversion requires pedalboard.\nInstall with: pip install pedalboard",
+        )
         return path, False
     try:
-        from pydub import AudioSegment
-
-        sound = AudioSegment.from_file(path)
-        wav_path = temp_path(f"{safe_base_name(path)}_conv_{uuid.uuid4().hex[:6]}.wav")
-        sound.export(wav_path, format="wav")
+        with AudioFile(path) as f:
+            audio = f.read(f.frames)
+            sr = f.samplerate
+        safe_name = os.path.splitext(os.path.basename(path))[0]
+        wav_path = temp_path(f"{safe_name}_conv_{uuid.uuid4().hex[:6]}.wav")
+        with AudioFile(
+            wav_path, "w", samplerate=sr, num_channels=audio.shape[0], bit_depth=16
+        ) as f:
+            f.write(audio)
         return wav_path, True
     except Exception as e:
         from pyp6.ui.dialogs_common import dark_showerror
 
-        dark_showerror("Conversion Error", f"Details: {e}")
+        dark_showerror("Conversion Error", f"Could not convert file:\n{e}")
         return path, False
 
 
 def build_chop_file(file_paths, rate, channels, num_slices, normalize_mode="off"):
-    """Renders `file_paths` into one multisample."""
-    if not PYDUB_AVAILABLE:
-        raise RuntimeError("pydub is required for the Chop feature.")
-    from pydub import AudioSegment
-    from pydub.effects import normalize as pydub_normalize
-    from pydub.silence import detect_leading_silence
+    """Render file_paths into one multisample WAV buffer for the P-6.
+
+    Returns (audio_np, rate) where audio_np is (channels, total_samples) float32.
+    The caller is responsible for writing the WAV file.
+    """
+    if not AUDIO_AVAILABLE:
+        raise RuntimeError("pedalboard is required for the Chop feature.")
+
+    from pyp6.audio.processing import snap_ms_backward_to_zero
 
     limit = MAX_SECONDS.get((rate, channels))
     if not limit:
         raise ValueError(f"No duration limit defined for {rate}Hz/{channels}ch.")
 
-    total_ms = int(round(limit * 1000))
-    boundaries = [int(round(i * total_ms / num_slices)) for i in range(num_slices + 1)]
-
-    combined = AudioSegment.silent(duration=0, frame_rate=rate)
-    if channels == 2:
-        combined = combined.set_channels(2)
-    else:
-        combined = combined.set_channels(1)
-    combined = combined.set_sample_width(2)
+    total_samples = int(round(limit * rate))
+    boundaries = [int(round(i * total_samples / num_slices)) for i in range(num_slices + 1)]
+    combined_parts = []
 
     for idx, path in enumerate(file_paths):
-        slice_ms = boundaries[idx + 1] - boundaries[idx]
-        audio = AudioSegment.from_file(path)
-        audio = audio.set_frame_rate(rate)
-        audio = audio.set_channels(channels)
-        audio = audio.set_sample_width(2)
+        slice_samples = boundaries[idx + 1] - boundaries[idx]
 
-        trimmed_start = detect_leading_silence(audio)
-        audio = audio[trimmed_start:]
+        with AudioFile(path) as f:
+            audio = f.read(f.frames)  # (src_channels, src_samples) float32
+            src_sr = f.samplerate
 
-        if len(audio) > slice_ms:
-            cut_ms = snap_ms_backward_to_zero(audio, slice_ms)
-            audio = audio[:cut_ms]
+        # Resample to target rate
+        if src_sr != rate:
+            audio = pedalboard.Resample(target_sample_rate=rate)(audio, src_sr)
 
+        # Channel conversion
+        if audio.shape[0] != channels:
+            if channels == 1:
+                audio = audio.mean(axis=0, keepdims=True)
+            else:
+                audio = np.repeat(audio[:1], 2, axis=0)  # mono -> stereo
+
+        # Trim leading silence
+        trim_start = _detect_leading_silence_samples(audio)
+        if trim_start > 0:
+            audio = audio[:, trim_start:]
+
+        # Per-sample normalization before truncation
         if normalize_mode == "per_sample":
-            audio = pydub_normalize(audio)
+            audio = _normalize_audio(audio)
 
-        if len(audio) < slice_ms:
-            tail_ms = snap_ms_backward_to_zero(audio, len(audio))
-            audio = audio[:tail_ms]
-            pad = AudioSegment.silent(duration=slice_ms - len(audio), frame_rate=rate)
-            pad = pad.set_channels(channels)
-            pad = pad.set_sample_width(2)
-            audio = audio + pad
+        # Truncate to slice boundary (zero-crossing aware)
+        if audio.shape[1] > slice_samples:
+            cut_ms = snap_ms_backward_to_zero(audio, rate, int(slice_samples * 1000 / rate))
+            cut_samples = int(cut_ms * rate / 1000)
+            audio = audio[:, :cut_samples]
 
-        combined += audio
+        # Pad with silence to exact slice length
+        if audio.shape[1] < slice_samples:
+            tail_ms = snap_ms_backward_to_zero(audio, rate, int(audio.shape[1] * 1000 / rate))
+            tail_samples = int(tail_ms * rate / 1000)
+            audio = audio[:, :tail_samples]
+            pad = np.zeros((channels, slice_samples - audio.shape[1]), dtype=np.float32)
+            audio = np.concatenate([audio, pad], axis=1)
 
+        combined_parts.append(audio)
+
+    # Fill remaining slices with silence if fewer files than slices
     if len(file_paths) < num_slices:
-        remaining_ms = total_ms - boundaries[len(file_paths)]
-        if remaining_ms > 0:
-            silence = AudioSegment.silent(duration=remaining_ms, frame_rate=rate)
-            silence = silence.set_channels(channels)
-            silence = silence.set_sample_width(2)
-            combined += silence
+        remaining_samples = total_samples - boundaries[len(file_paths)]
+        if remaining_samples > 0:
+            combined_parts.append(np.zeros((channels, remaining_samples), dtype=np.float32))
+
+    if combined_parts:
+        combined = np.concatenate(combined_parts, axis=1)
+    else:
+        combined = np.zeros((channels, total_samples), dtype=np.float32)
 
     if normalize_mode == "whole":
-        combined = pydub_normalize(combined)
+        combined = _normalize_audio(combined)
 
-    return combined
+    return combined, rate

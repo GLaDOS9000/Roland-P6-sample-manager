@@ -19,9 +19,11 @@ except ImportError:
     sf = None
 
 try:
-    from pydub import AudioSegment
+    import pedalboard as _pb_mod
+    from pedalboard.io import AudioFile as _PBAudioFile
 except ImportError:
-    AudioSegment = None
+    _PBAudioFile = None
+    _pb_mod = None
 
 from pyp6._theme_vars import (
     ACCENT_BLUE,
@@ -40,7 +42,7 @@ from pyp6._theme_vars import (
 )
 from pyp6.audio.conversion import build_chop_file
 from pyp6.audio.info import get_audio_duration_seconds
-from pyp6.audio.playback import PYDUB_AVAILABLE, play_audio
+from pyp6.audio.playback import AUDIO_AVAILABLE, play_audio
 from pyp6.audio.processing import (
     apply_micro_fade,
     ensure_mono_wav,
@@ -480,11 +482,16 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
 
     def show_waveform(self, path):
         wav_path = path
-        if path.lower().endswith(".mp3") and PYDUB_AVAILABLE:
+        if path.lower().endswith(".mp3") and AUDIO_AVAILABLE and _PBAudioFile:
             try:
-                sound = AudioSegment.from_file(path)
+                with _PBAudioFile(path) as _f:
+                    _audio = _f.read(_f.frames)
+                    _sr = _f.samplerate
                 wav_path = temp_path("waveform_src.wav")
-                sound.export(wav_path, format="wav")
+                with _PBAudioFile(
+                    wav_path, "w", samplerate=_sr, num_channels=_audio.shape[0], bit_depth=16
+                ) as _f:
+                    _f.write(_audio)
             except Exception:
                 self._wave_data = None
                 self.wave_canvas.delete("all")
@@ -881,14 +888,21 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             sd.stop()
             play_path = path
             if path.lower().endswith(".mp3"):
-                if not PYDUB_AVAILABLE:
+                if not AUDIO_AVAILABLE or not _PBAudioFile:
                     dark_showerror(
-                        "pydub missing", "Previewing MP3 requires pydub + ffmpeg.", parent=self
+                        "pedalboard missing",
+                        "Previewing MP3 requires pedalboard.",
+                        parent=self,
                     )
                     return
-                sound = AudioSegment.from_file(path)
+                with _PBAudioFile(path) as _f:
+                    _audio = _f.read(_f.frames)
+                    _sr = _f.samplerate
                 tmp_preview = temp_path("preview_tmp.wav")
-                sound.export(tmp_preview, format="wav")
+                with _PBAudioFile(
+                    tmp_preview, "w", samplerate=_sr, num_channels=_audio.shape[0], bit_depth=16
+                ) as _f:
+                    _f.write(_audio)
                 play_path = tmp_preview
 
             data, fs = sf.read(play_path, dtype="float32")
@@ -1774,11 +1788,16 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
     def load_waveform(self, path, mode, display_name=None):
         self.wave_mode = mode
         wav_path = path
-        if path.lower().endswith(".mp3") and PYDUB_AVAILABLE:
+        if path.lower().endswith(".mp3") and AUDIO_AVAILABLE and _PBAudioFile:
             try:
-                sound = AudioSegment.from_file(path)
+                with _PBAudioFile(path) as _f:
+                    _audio = _f.read(_f.frames)
+                    _sr = _f.samplerate
                 wav_path = temp_path("waveform_src.wav")
-                sound.export(wav_path, format="wav")
+                with _PBAudioFile(
+                    wav_path, "w", samplerate=_sr, num_channels=_audio.shape[0], bit_depth=16
+                ) as _f:
+                    _f.write(_audio)
             except Exception:
                 self.current_audio_path = None
                 self._wave_data = None
@@ -1787,14 +1806,14 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
                     self.wave_width // 2, self.wave_height // 2, text="(No preview)", fill=FG_MUTED
                 )
                 return
-        elif not PYDUB_AVAILABLE and path.lower().endswith(".mp3"):
+        elif not AUDIO_AVAILABLE and path.lower().endswith(".mp3"):
             self.current_audio_path = None
             self._wave_data = None
             self.wave_canvas.delete("all")
             self.wave_canvas.create_text(
                 self.wave_width // 2,
                 self.wave_height // 2,
-                text="(No preview - pydub missing)",
+                text="(No preview - pedalboard missing)",
                 fill=FG_MUTED,
             )
             return
@@ -2148,19 +2167,25 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
         try:
             sd.stop()
 
-            if self.wave_mode == "selected" and PYDUB_AVAILABLE:
+            if self.wave_mode == "selected" and AUDIO_AVAILABLE and _PBAudioFile:
                 # Preview at the actual target rate/channels (in-memory, no temp
                 # file) so you can hear the quality it will have in the chop.
                 rate = self.rate_var.get()
                 channels = 2 if self.stereo_var.get() else 1
-                audio = AudioSegment.from_file(self.current_audio_path)
-                audio = audio.set_frame_rate(rate)
-                audio = audio.set_channels(channels)
-                samples = np.array(audio.get_array_of_samples()).astype(np.float32)
-                max_val = float(1 << (8 * audio.sample_width - 1))
-                samples /= max_val
-                if channels > 1:
-                    samples = samples.reshape((-1, channels))
+                with _PBAudioFile(self.current_audio_path) as _f:
+                    _audio = _f.read(_f.frames)
+                    _file_sr = _f.samplerate
+                if _file_sr != rate:
+                    _audio = _pb_mod.Resample(target_sample_rate=rate)(_audio, _file_sr)
+                if _audio.shape[0] != channels:
+                    if channels == 1:
+                        _audio = _audio.mean(axis=0, keepdims=True)
+                    else:
+                        _audio = np.repeat(_audio[:1], 2, axis=0)
+                # sounddevice expects (samples, channels) or (samples,) for mono
+                samples = _audio.T
+                if samples.ndim > 1 and samples.shape[1] == 1:
+                    samples = samples[:, 0]
                 if self._normalize_per_sample():
                     peak = float(np.max(np.abs(samples))) if samples.size else 0.0
                     if peak > 0:
@@ -2205,9 +2230,11 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
     # ----- Build -----
 
     def on_build(self):
-        if not PYDUB_AVAILABLE:
+        if not AUDIO_AVAILABLE:
             dark_showerror(
-                "pydub missing", "The Chop feature requires pydub + ffmpeg.", parent=self
+                "pedalboard missing",
+                "The Chop feature requires pedalboard.",
+                parent=self,
             )
             return
         if not self.selected_files:
@@ -2239,14 +2266,17 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             pass
 
         try:
-            combined = build_chop_file(
+            combined_np, out_sr = build_chop_file(
                 files_to_use, rate, channels, num_slices, normalize_mode=self._normalize_mode()
             )
 
             unique_id = uuid.uuid4().hex[:8]
             out_name = f"chop_{num_slices}slices_{rate}Hz_{'stereo' if channels == 2 else 'mono'}_{unique_id}.wav"
             out_path = temp_path(out_name)
-            combined.export(out_path, format="wav")
+            with _PBAudioFile(
+                out_path, "w", samplerate=out_sr, num_channels=combined_np.shape[0], bit_depth=16
+            ) as _f:
+                _f.write(combined_np)
         except Exception as e:
             import traceback
 

@@ -48,10 +48,7 @@ from pyp6.audio.info import (
     get_wav_info,
     get_wav_sample_width,
 )
-from pyp6.audio.playback import (
-    PYDUB_AVAILABLE,
-    warn_pydub_missing_once,
-)
+from pyp6.audio.playback import AUDIO_AVAILABLE
 from pyp6.config import (
     add_recent_preset,
     is_preset_folder,
@@ -1486,11 +1483,10 @@ class P6ManagerApp:
             self.pad_widgets[pad].update_mini_waveform()
         self.update_storage_display()
         self.update_pad_warnings()
-        if self.bank_force_mono(self.current_bank.get()):
-            warn_pydub_missing_once()
+        pass  # pedalboard handles mono conversion at export time
 
     def _estimated_export_bytes(self, filepath, target_rate, pitch_cents=0, force_mono=False):
-        if not PYDUB_AVAILABLE:
+        if not AUDIO_AVAILABLE:
             try:
                 return os.path.getsize(filepath)
             except OSError:

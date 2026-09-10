@@ -127,25 +127,19 @@ def apply_micro_fade(data, fs, fade_ms=2):
     return out
 
 
-def snap_ms_backward_to_zero(audio_segment, target_ms, search_ms=5):
-    """Finds a zero-crossing at or before target_ms."""
-    import numpy as np
-
-    fs = audio_segment.frame_rate
-    target_idx = int(target_ms * fs / 1000)
+def snap_ms_backward_to_zero(audio_np, sr, target_ms, search_ms=5):
+    """Find a zero-crossing at or before target_ms in a (channels, samples) float32 array.
+    Returns the adjusted position in milliseconds."""
+    target_idx = int(target_ms * sr / 1000)
     if target_idx <= 1:
         return target_ms
-    samples = np.array(audio_segment.get_array_of_samples()).astype(np.float32)
-    if audio_segment.channels > 1:
-        samples = samples.reshape((-1, audio_segment.channels))
-    n = len(samples)
+    n = audio_np.shape[1]
     target_idx = min(target_idx, n - 1)
-    mono = samples.mean(axis=1) if samples.ndim > 1 else samples
-    radius = int(fs * search_ms / 1000)
+    mono = audio_np.mean(axis=0)
+    radius = int(sr * search_ms / 1000)
     lo = max(0, target_idx - radius)
-
     for i in range(target_idx - 1, lo - 1, -1):
         if mono[i] == 0 or (mono[i] < 0) != (mono[i + 1] < 0):
             idx = i if abs(mono[i]) <= abs(mono[i + 1]) else i + 1
-            return int(idx * 1000 / fs)
+            return int(idx * 1000 / sr)
     return target_ms

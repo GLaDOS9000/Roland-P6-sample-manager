@@ -2,11 +2,9 @@
 
 import contextlib
 import os
-import shutil
-import subprocess
 import wave
 
-from pyp6.audio.playback import PYDUB_AVAILABLE
+from pyp6.audio.playback import AUDIO_AVAILABLE
 from pyp6.constants import MAX_SECONDS
 
 
@@ -72,37 +70,15 @@ def compute_truncate_fraction(path, target_rate=None, pitch_cents=0, force_mono=
     return limit_original_seconds / duration
 
 
-def _mp3_duration_via_ffprobe(path):
-    """Reads just the duration from an mp3's container metadata via ffprobe."""
-    if PYDUB_AVAILABLE:
-        try:
-            from pydub import AudioSegment
-
-            ffprobe = getattr(AudioSegment, "ffprobe", None)
-        except Exception:
-            ffprobe = None
-    else:
-        ffprobe = None
-    ffprobe = ffprobe or shutil.which("ffprobe")
-    if not ffprobe:
+def _get_mp3_duration(path):
+    """Read MP3 (or any pedalboard-supported format) duration in seconds."""
+    if not AUDIO_AVAILABLE:
         return None
     try:
-        result = subprocess.run(
-            [
-                ffprobe,
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        return float(result.stdout.strip())
+        from pedalboard.io import AudioFile
+
+        with AudioFile(path) as f:
+            return f.frames / f.samplerate
     except Exception:
         return None
 
@@ -126,12 +102,7 @@ def get_audio_duration_seconds(path):
         if path.lower().endswith(".wav"):
             duration, _, _ = get_wav_info(path)
         elif path.lower().endswith(".mp3"):
-            duration = _mp3_duration_via_ffprobe(path)
-            if duration is None and PYDUB_AVAILABLE:
-                from pydub import AudioSegment
-
-                audio = AudioSegment.from_file(path)
-                duration = len(audio) / 1000.0
+            duration = _get_mp3_duration(path)
     except Exception:
         duration = None
 
