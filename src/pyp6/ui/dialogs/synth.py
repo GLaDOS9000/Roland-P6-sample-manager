@@ -109,7 +109,11 @@ class WaveformCreatorDialog(tk.Toplevel):
         "Sine": lambda t: np.sin(2 * np.pi * t),
         "Triangle": lambda t: 2.0 * np.abs(2.0 * ((t + 0.25) % 1.0) - 1.0) - 1.0,
         "Saw": lambda t: 2.0 * t - 1.0,
+        "Rev Saw": lambda t: 1.0 - 2.0 * t,
         "Square": lambda t: np.where(t < 0.5, 1.0, -1.0),
+        "Pulse": lambda t: np.where(t < 0.25, 1.0, -1.0),
+        "Half Sin": lambda t: (v := np.abs(np.sin(2 * np.pi * t)), v - v.mean())[1],
+        "Noise": lambda t: (rng := np.random.default_rng(), rng.uniform(-1.0, 1.0, len(t)))[1],
         "Flat": lambda t: np.zeros_like(t),
     }
 
@@ -120,7 +124,7 @@ class WaveformCreatorDialog(tk.Toplevel):
         self.result = None
         self.title("Waveform Creator")
         style_toplevel(self)
-        self.minsize(720, 520)
+        self.minsize(820, 580)
 
         t = np.arange(self.POINTS) / float(self.POINTS)
         self.lanes = {
@@ -136,6 +140,8 @@ class WaveformCreatorDialog(tk.Toplevel):
         self._last_xy = None
         self._preview_playing = False
         self._loaded_note = None
+        self.freq_vars = {"A": tk.DoubleVar(value=1.0), "B": tk.DoubleVar(value=1.0)}
+        self.phase_vars = {"A": tk.IntVar(value=0), "B": tk.IntVar(value=0)}
 
         head = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
         head.pack(fill="x")
@@ -204,7 +210,7 @@ class WaveformCreatorDialog(tk.Toplevel):
         morph_sep = tk.Label(panel.body, text="A \u2192 B morph", anchor="w")
         style_label(morph_sep, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 7))
         morph_sep.pack(fill="x", pady=(8, 0))
-        self.morph_strip = tk.Canvas(panel.body, bg=WAVE_BG, highlightthickness=0, height=70)
+        self.morph_strip = tk.Canvas(panel.body, bg=WAVE_BG, highlightthickness=0, height=100)
         self.morph_strip.pack(fill="x", pady=(2, 4))
         self.morph_strip.bind("<Configure>", lambda e: self._draw_morph_strip())
         add_tooltip(
@@ -213,47 +219,46 @@ class WaveformCreatorDialog(tk.Toplevel):
             "Nearest curve = A, furthest = B.",
         )
 
-        tools = tk.Frame(self, padx=14, pady=8, bg=BG_DARK)
-        tools.pack(fill="x")
+        # --- Row 1: waveform presets + Load ---
+        wave_row = tk.Frame(self, padx=14, bg=BG_DARK)
+        wave_row.pack(fill="x", pady=(8, 2))
         for label in self.PRESETS:
             b = RoundedButton(
-                tools,
+                wave_row,
                 text=label,
                 command=lambda lbl=label: self._load_preset(lbl),
                 bg=BG_INPUT,
                 fg=FG_TEXT,
                 parent_bg=BG_DARK,
-                width=72,
+                width=68,
                 height=26,
                 font=(UI_FAMILY, 8),
             )
             b.pack(side="left", padx=2)
-            add_tooltip(
-                b, f"Replaces the active shape with a {label.lower()}. Draw over it from there."
-            )
+            add_tooltip(b, f"Replaces the active shape with a {label.lower()}.")
         load_btn = RoundedButton(
-            tools,
+            wave_row,
             text="Load\u2026",
             command=self._load_file,
             bg=BTN_PURPLE,
             fg="#FFFFFF",
             parent_bg=BG_DARK,
-            width=72,
+            width=68,
             height=26,
             font=(UI_FAMILY, 8),
         )
         load_btn.pack(side="left", padx=(10, 2))
         add_tooltip(
             load_btn,
-            "Loads a single-cycle WAV into the active shape instead of "
-            "drawing it.\n\nSample rate and bit depth do not matter - only "
-            "the shape is taken. The pitch comes from the wavetable's root "
-            "note, so a 48 kHz file and a 44.1 kHz file give the same "
-            "note.\nStereo files are mixed down; any DC offset is removed.",
+            "Loads a single-cycle WAV into the active shape.\n"
+            "Only the shape is taken; pitch comes from the root note.",
         )
 
+        # --- Row 2: actions ---
+        act_row = tk.Frame(self, padx=14, bg=BG_DARK)
+        act_row.pack(fill="x", pady=(0, 2))
         smooth_btn = RoundedButton(
-            tools,
+            act_row,
             text="Smooth",
             command=self._smooth,
             bg=BG_INPUT,
@@ -263,30 +268,40 @@ class WaveformCreatorDialog(tk.Toplevel):
             height=26,
             font=(UI_FAMILY, 8),
         )
-        smooth_btn.pack(side="left", padx=(14, 2))
-        add_tooltip(
-            smooth_btn,
-            "Rounds off mouse jitter. Applying it repeatedly keeps taking harmonics off the top.",
-        )
+        smooth_btn.pack(side="left", padx=(0, 2))
+        add_tooltip(smooth_btn, "Rounds off jitter. Apply repeatedly to remove more harmonics.")
         self._copy_btn = RoundedButton(
-            tools,
-            text="A \u2192 B",
+            act_row,
+            text="Copy to B",
             command=self._copy_lane,
             bg=BG_INPUT,
             fg=FG_TEXT,
             parent_bg=BG_DARK,
-            width=72,
+            width=80,
             height=26,
             font=(UI_FAMILY, 8),
         )
         self._copy_btn.pack(side="left", padx=2)
         add_tooltip(
             self._copy_btn,
-            "Copies the active shape onto the other lane. With both "
-            "lanes equal the family becomes a static block.",
+            "Copies the active shape onto the other lane.\n"
+            "Both lanes identical = the wavetable holds the same shape throughout.",
         )
+        swap_btn = RoundedButton(
+            act_row,
+            text="Swap A \u21c4 B",
+            command=self._swap_lanes,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+            height=26,
+            font=(UI_FAMILY, 8),
+        )
+        swap_btn.pack(side="left", padx=2)
+        add_tooltip(swap_btn, "Swaps shapes A and B — reverses the morph direction.")
         self.prev_btn = RoundedButton(
-            tools,
+            act_row,
             text="\u25b6",
             command=self._toggle_preview,
             bg=BTN_BLUE,
@@ -296,12 +311,86 @@ class WaveformCreatorDialog(tk.Toplevel):
             height=26,
             font=(UI_FAMILY, 10, "bold"),
         )
-        self.prev_btn.pack(side="right", padx=2)
+        self.prev_btn.pack(side="right", padx=(2, 0))
         add_tooltip(
             self.prev_btn,
-            "Plays the morph from A to B at the root note the dialog behind "
-            "this one is set to, with the same band limit the table will get.",
+            "Plays the A\u2192B morph sweep at the root note configured in the synth dialog.",
         )
+
+        # --- Row 3: per-lane freq / phase ---
+        param_row = tk.Frame(self, padx=14, bg=BG_DARK)
+        param_row.pack(fill="x", pady=(0, 6))
+        for lane in ("A", "B"):
+            if lane == "B":
+                sep = tk.Frame(param_row, width=1, bg=BORDER_COLOR)
+                sep.pack(side="left", fill="y", padx=12)
+            lbl = tk.Label(param_row, text=f"Shape {lane}:")
+            style_label(lbl, font=(UI_FAMILY, 8, "bold"))
+            lbl.pack(side="left", padx=(0, 6))
+            tk.Label(
+                param_row, text="Freq \u00d7", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)
+            ).pack(side="left")
+            freq_sb = tk.Spinbox(
+                param_row,
+                textvariable=self.freq_vars[lane],
+                from_=0.5,
+                to=8.0,
+                increment=0.5,
+                width=5,
+                format="%.1f",
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                insertbackground=FG_TEXT,
+                buttonbackground=BG_INPUT,
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=BORDER_COLOR,
+                font=(UI_FAMILY, 8),
+            )
+            freq_sb.pack(side="left", padx=(2, 8))
+            add_tooltip(freq_sb, f"Frequency multiplier for shape {lane}. Click Apply to bake.")
+            tk.Label(param_row, text="Phase", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+                side="left"
+            )
+            phase_sb = tk.Spinbox(
+                param_row,
+                textvariable=self.phase_vars[lane],
+                from_=0,
+                to=355,
+                increment=5,
+                width=5,
+                bg=BG_INPUT,
+                fg=FG_TEXT,
+                insertbackground=FG_TEXT,
+                buttonbackground=BG_INPUT,
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=BORDER_COLOR,
+                font=(UI_FAMILY, 8),
+            )
+            phase_sb.pack(side="left", padx=(2, 2))
+            tk.Label(param_row, text="\u00b0", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+                side="left", padx=(0, 4)
+            )
+            add_tooltip(phase_sb, f"Phase shift (degrees) for shape {lane}. Click Apply to bake.")
+            apply_btn = RoundedButton(
+                param_row,
+                text=f"Apply {lane}",
+                command=lambda ln=lane: self._apply_transform(ln),
+                bg=BTN_ORANGE,
+                fg="#FFFFFF",
+                parent_bg=BG_DARK,
+                width=64,
+                height=22,
+                font=(UI_FAMILY, 8),
+            )
+            apply_btn.pack(side="left", padx=(0, 2))
+            add_tooltip(
+                apply_btn,
+                f"Bakes the Freq × Phase transform into shape {lane}.\n"
+                "Freq: repeats the cycle N times (2 = double frequency).\n"
+                "Phase: shifts the waveform by N degrees.",
+            )
 
         foot = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
         foot.pack(fill="x")
@@ -469,6 +558,32 @@ class WaveformCreatorDialog(tk.Toplevel):
         self.lanes[dst] = self.lanes[src].copy()
         self._redraw()
 
+    def _swap_lanes(self):
+        self.lanes["A"], self.lanes["B"] = self.lanes["B"].copy(), self.lanes["A"].copy()
+        self._redraw()
+
+    def _apply_transform(self, lane):
+        """Bake freq × and phase° into lanes[lane], then reset the spinboxes."""
+        vals = self.lanes[lane].copy()
+        N = len(vals)
+        # --- phase shift ---
+        phase_deg = self.phase_vars[lane].get()
+        if phase_deg:
+            shift = int(round(phase_deg / 360.0 * N)) % N
+            vals = np.roll(vals, shift)
+        # --- frequency multiply (subsample-accurate) ---
+        freq = self.freq_vars[lane].get()
+        if freq != 1.0 and freq > 0:
+            idx_f = np.arange(N, dtype=float) * freq % N
+            i0 = idx_f.astype(int) % N
+            i1 = (i0 + 1) % N
+            frac = idx_f - np.floor(idx_f)
+            vals = vals[i0] * (1.0 - frac) + vals[i1] * frac
+        self.lanes[lane] = vals
+        self.freq_vars[lane].set(1.0)
+        self.phase_vars[lane].set(0)
+        self._redraw()
+
     def _band_limited(self, values):
         """One cycle as the segment will hold it, at the current settings.
 
@@ -490,39 +605,61 @@ class WaveformCreatorDialog(tk.Toplevel):
         s = WTSynth(one, 1, max(1, min(h, one // 2)))
         return wt_points_to_cycle(values, s), h, min(h, self.POINTS // 2)
 
-    _MORPH_STEPS = 7  # number of waveforms shown in the morph strip
+    _MORPH_STEPS = 11
 
     def _draw_morph_strip(self):
-        """Depth-stacked morph strip: A at front (bright), B at back (faded)."""
+        """Isometric depth-stack: A at front-bottom-left, B at top-right (faded)."""
         c = self.morph_strip
         c.delete("all")
         w = c.winfo_width()
         h = c.winfo_height()
-        if w < 10 or h < 10:
+        if w < 20 or h < 20:
             return
+
         n = self._MORPH_STEPS
         a = self.lanes["A"]
         b = self.lanes["B"]
-        mid = h / 2
-        amp = mid - 4
-        step = max(1, len(a) // 400)
+
+        # isometric offsets: each step shifts slightly right and up
+        total_dx = w * 0.18  # total horizontal stack shift
+        total_dy = h * 0.42  # total vertical stack shift
+        dy = total_dy / max(1, n - 1)
+
+        # front curve: bottom-left; back curve: top-right
+        # amplitude shrinks slightly toward the back (perspective)
+        front_amp = (h - total_dy) / 2 - 6
+        back_amp = front_amp * 0.60
+
         line_col = readable_on(WAVE_COLOR, WAVE_BG, 7.0)
+        step = max(1, len(a) // 500)
+
         # draw back→front so nearer curves occlude farther ones
         for idx in range(n - 1, -1, -1):
-            m = idx / (n - 1)
+            m = idx / (n - 1)  # 0=A (front), 1=B (back)
             vals = a * (1.0 - m) + b * m
-            idxs = range(0, len(vals), step)
+
+            ox = m * total_dx  # x origin for this step
+            oy = (n - 1 - idx) * dy  # y origin (back = top, front = bottom)
+            mid_y = oy + (h - total_dy) / 2
+            amp = front_amp * (1.0 - m) + back_amp * m
+
             pts = []
+            idxs = range(0, len(vals), step)
+            avail_w = w - total_dx
             for i in idxs:
-                pts += [i / (len(vals) - 1) * w, mid - vals[i] * amp]
-            fade = 0.6 * m  # A is fully opaque, B is most faded
+                pts += [ox + i / (len(vals) - 1) * avail_w, mid_y - vals[i] * amp]
+
+            fade = 0.72 * m
             col = blend_colors(line_col, WAVE_BG, fade)
-            # fill to bottom so nearer curves hide what's behind them
-            poly = pts + [pts[-2], h, pts[0], h]
+            # filled polygon to occlude curves behind
+            poly = pts + [pts[-2], mid_y + amp + 2, pts[0], mid_y + amp + 2]
             c.create_polygon(*poly, fill=WAVE_BG, outline="")
-            c.create_line(*pts, fill=col, width=2 if idx == 0 else 1)
-        c.create_text(4, h - 2, text="A", anchor="sw", fill=FG_MUTED, font=(UI_FAMILY, 7))
-        c.create_text(w - 4, 2, text="B", anchor="ne", fill=FG_MUTED, font=(UI_FAMILY, 7))
+            lw = 2 if idx == 0 else 1
+            c.create_line(*pts, fill=col, width=lw)
+
+        # labels
+        c.create_text(4, h - 4, text="A", anchor="sw", fill=FG_MUTED, font=(UI_FAMILY, 7, "bold"))
+        c.create_text(w - 4, 4, text="B", anchor="ne", fill=FG_MUTED, font=(UI_FAMILY, 7))
 
     def _redraw(self):
         c = self.canvas
@@ -535,8 +672,9 @@ class WaveformCreatorDialog(tk.Toplevel):
 
         src = self.active.get()
         dst = "B" if src == "A" else "A"
-        self._copy_btn.text = f"{src} \u2192 {dst}"
-        self._copy_btn._draw()
+        if hasattr(self, "_copy_btn"):
+            self._copy_btn.text = f"Copy to {dst}"
+            self._copy_btn._draw()
 
         vals = self.lanes[src]
         other = self.lanes[dst]
