@@ -256,7 +256,7 @@ class WaveformCreatorDialog(tk.Toplevel):
             smooth_btn,
             "Rounds off mouse jitter. Applying it repeatedly keeps taking harmonics off the top.",
         )
-        copy_btn = RoundedButton(
+        self._copy_btn = RoundedButton(
             tools,
             text="A \u2192 B",
             command=self._copy_lane,
@@ -267,9 +267,9 @@ class WaveformCreatorDialog(tk.Toplevel):
             height=26,
             font=(UI_FAMILY, 8),
         )
-        copy_btn.pack(side="left", padx=2)
+        self._copy_btn.pack(side="left", padx=2)
         add_tooltip(
-            copy_btn,
+            self._copy_btn,
             "Copies the active shape onto the other lane. With both "
             "lanes equal the family becomes a static block.",
         )
@@ -487,8 +487,13 @@ class WaveformCreatorDialog(tk.Toplevel):
             c.create_line(w * frac, 0, w * frac, h, fill=grid, dash=(2, 4))
         c.create_line(0, mid, w, mid, fill=blend_colors(WAVE_BG, FG_MUTED, 0.45))
 
-        vals = self.lanes[self.active.get()]
-        other = self.lanes["B" if self.active.get() == "A" else "A"]
+        src = self.active.get()
+        dst = "B" if src == "A" else "A"
+        self._copy_btn.text = f"{src} \u2192 {dst}"
+        self._copy_btn._draw()
+
+        vals = self.lanes[src]
+        other = self.lanes[dst]
         span = mid - 6
 
         def poly(values, color, width, dash=None):
