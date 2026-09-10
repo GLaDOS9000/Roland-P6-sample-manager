@@ -142,6 +142,24 @@ class WaveformCreatorDialog(tk.Toplevel):
         self._loaded_note = None
         self.freq_vars = {"A": tk.DoubleVar(value=1.0), "B": tk.DoubleVar(value=1.0)}
         self.phase_vars = {"A": tk.IntVar(value=0), "B": tk.IntVar(value=0)}
+        self._base_lanes = {k: v.copy() for k, v in self.lanes.items()}
+        self.shape_vars = {
+            "A": tk.StringVar(value="Custom" if entry else "Sine"),
+            "B": tk.StringVar(value="Custom" if entry else "Saw"),
+        }
+        cfg = getattr(self.app, "_wt_last_config", None) or {}
+        self.root_note_var = tk.StringVar(value=cfg.get("note", "C2"))
+        self.fine_tune_var = tk.IntVar(value=0)
+        self.smooth_passes = tk.IntVar(value=0)
+        for lane in ("A", "B"):
+            self.freq_vars[lane].trace_add(
+                "write", lambda *_, ln=lane: self._recompute_and_redraw(ln)
+            )
+            self.phase_vars[lane].trace_add(
+                "write", lambda *_, ln=lane: self._recompute_and_redraw(ln)
+            )
+        self.smooth_passes.trace_add("write", lambda *_: self._recompute_and_redraw_both())
+        self.root_note_var.trace_add("write", lambda *_: self._redraw())
 
         head = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
         head.pack(fill="x")
@@ -219,124 +237,60 @@ class WaveformCreatorDialog(tk.Toplevel):
             "Nearest curve = A, furthest = B.",
         )
 
-        # --- Row 1: waveform presets + Load ---
-        wave_row = tk.Frame(self, padx=14, bg=BG_DARK)
-        wave_row.pack(fill="x", pady=(8, 2))
-        for label in self.PRESETS:
-            b = RoundedButton(
-                wave_row,
-                text=label,
-                command=lambda lbl=label: self._load_preset(lbl),
-                bg=BG_INPUT,
-                fg=FG_TEXT,
+        # ------------------------------------------------------------------ #
+        # Row A: per-lane controls (shape dropdown, freq, phase)             #
+        # ------------------------------------------------------------------ #
+        lane_panel = tk.Frame(self, padx=14, bg=BG_DARK)
+        lane_panel.pack(fill="x", pady=(6, 0))
+
+        PRESET_NAMES = list(self.PRESETS.keys())
+        ROOT_NOTES = [midi_to_name(m) for m in range(12, 97)]  # C0–B7
+
+        for lane in ("A", "B"):
+            row = tk.Frame(lane_panel, bg=BG_DARK)
+            row.pack(fill="x", pady=1)
+
+            lbl = tk.Label(row, text=f"Shape {lane}", width=8, anchor="w")
+            style_label(lbl, font=(UI_FAMILY, 8, "bold"))
+            lbl.pack(side="left")
+
+            shape_dd = RoundedDropdown(
+                row,
+                self.shape_vars[lane],
+                PRESET_NAMES,
+                command=lambda lbl=None, ln=lane: self._on_shape_change(ln),
                 parent_bg=BG_DARK,
-                width=68,
-                height=26,
+                width=90,
+                height=24,
                 font=(UI_FAMILY, 8),
             )
-            b.pack(side="left", padx=2)
-            add_tooltip(b, f"Replaces the active shape with a {label.lower()}.")
-        load_btn = RoundedButton(
-            wave_row,
-            text="Load\u2026",
-            command=self._load_file,
-            bg=BTN_PURPLE,
-            fg="#FFFFFF",
-            parent_bg=BG_DARK,
-            width=68,
-            height=26,
-            font=(UI_FAMILY, 8),
-        )
-        load_btn.pack(side="left", padx=(10, 2))
-        add_tooltip(
-            load_btn,
-            "Loads a single-cycle WAV into the active shape.\n"
-            "Only the shape is taken; pitch comes from the root note.",
-        )
+            shape_dd.pack(side="left", padx=(0, 4))
+            add_tooltip(shape_dd, f"Load a preset waveform into shape {lane}.")
 
-        # --- Row 2: actions ---
-        act_row = tk.Frame(self, padx=14, bg=BG_DARK)
-        act_row.pack(fill="x", pady=(0, 2))
-        smooth_btn = RoundedButton(
-            act_row,
-            text="Smooth",
-            command=self._smooth,
-            bg=BG_INPUT,
-            fg=FG_TEXT,
-            parent_bg=BG_DARK,
-            width=72,
-            height=26,
-            font=(UI_FAMILY, 8),
-        )
-        smooth_btn.pack(side="left", padx=(0, 2))
-        add_tooltip(smooth_btn, "Rounds off jitter. Apply repeatedly to remove more harmonics.")
-        self._copy_btn = RoundedButton(
-            act_row,
-            text="Copy to B",
-            command=self._copy_lane,
-            bg=BG_INPUT,
-            fg=FG_TEXT,
-            parent_bg=BG_DARK,
-            width=80,
-            height=26,
-            font=(UI_FAMILY, 8),
-        )
-        self._copy_btn.pack(side="left", padx=2)
-        add_tooltip(
-            self._copy_btn,
-            "Copies the active shape onto the other lane.\n"
-            "Both lanes identical = the wavetable holds the same shape throughout.",
-        )
-        swap_btn = RoundedButton(
-            act_row,
-            text="Swap A \u21c4 B",
-            command=self._swap_lanes,
-            bg=BG_INPUT,
-            fg=FG_TEXT,
-            parent_bg=BG_DARK,
-            width=90,
-            height=26,
-            font=(UI_FAMILY, 8),
-        )
-        swap_btn.pack(side="left", padx=2)
-        add_tooltip(swap_btn, "Swaps shapes A and B — reverses the morph direction.")
-        self.prev_btn = RoundedButton(
-            act_row,
-            text="\u25b6",
-            command=self._toggle_preview,
-            bg=BTN_BLUE,
-            fg="#FFFFFF",
-            parent_bg=BG_DARK,
-            width=40,
-            height=26,
-            font=(UI_FAMILY, 10, "bold"),
-        )
-        self.prev_btn.pack(side="right", padx=(2, 0))
-        add_tooltip(
-            self.prev_btn,
-            "Plays the A\u2192B morph sweep at the root note configured in the synth dialog.",
-        )
+            load_btn = RoundedButton(
+                row,
+                text="Load\u2026",
+                command=lambda ln=lane: self._load_file_lane(ln),
+                bg=BTN_PURPLE,
+                fg="#FFFFFF",
+                parent_bg=BG_DARK,
+                width=58,
+                height=24,
+                font=(UI_FAMILY, 8),
+            )
+            load_btn.pack(side="left", padx=(0, 10))
+            add_tooltip(load_btn, f"Load a single-cycle WAV file into shape {lane}.")
 
-        # --- Row 3: per-lane freq / phase ---
-        param_row = tk.Frame(self, padx=14, bg=BG_DARK)
-        param_row.pack(fill="x", pady=(0, 6))
-        for lane in ("A", "B"):
-            if lane == "B":
-                sep = tk.Frame(param_row, width=1, bg=BORDER_COLOR)
-                sep.pack(side="left", fill="y", padx=12)
-            lbl = tk.Label(param_row, text=f"Shape {lane}:")
-            style_label(lbl, font=(UI_FAMILY, 8, "bold"))
-            lbl.pack(side="left", padx=(0, 6))
-            tk.Label(
-                param_row, text="Freq \u00d7", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)
-            ).pack(side="left")
+            tk.Label(row, text="Freq \u00d7", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+                side="left"
+            )
             freq_sb = tk.Spinbox(
-                param_row,
+                row,
                 textvariable=self.freq_vars[lane],
                 from_=0.5,
                 to=8.0,
                 increment=0.5,
-                width=5,
+                width=4,
                 format="%.1f",
                 bg=BG_INPUT,
                 fg=FG_TEXT,
@@ -348,17 +302,18 @@ class WaveformCreatorDialog(tk.Toplevel):
                 font=(UI_FAMILY, 8),
             )
             freq_sb.pack(side="left", padx=(2, 8))
-            add_tooltip(freq_sb, f"Frequency multiplier for shape {lane}. Click Apply to bake.")
-            tk.Label(param_row, text="Phase", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            add_tooltip(freq_sb, f"Frequency multiplier for shape {lane} — updates live.")
+
+            tk.Label(row, text="Phase", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
                 side="left"
             )
             phase_sb = tk.Spinbox(
-                param_row,
+                row,
                 textvariable=self.phase_vars[lane],
                 from_=0,
                 to=355,
                 increment=5,
-                width=5,
+                width=4,
                 bg=BG_INPUT,
                 fg=FG_TEXT,
                 insertbackground=FG_TEXT,
@@ -369,28 +324,110 @@ class WaveformCreatorDialog(tk.Toplevel):
                 font=(UI_FAMILY, 8),
             )
             phase_sb.pack(side="left", padx=(2, 2))
-            tk.Label(param_row, text="\u00b0", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
-                side="left", padx=(0, 4)
+            tk.Label(row, text="\u00b0", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+                side="left", padx=(0, 10)
             )
-            add_tooltip(phase_sb, f"Phase shift (degrees) for shape {lane}. Click Apply to bake.")
-            apply_btn = RoundedButton(
-                param_row,
-                text=f"Apply {lane}",
-                command=lambda ln=lane: self._apply_transform(ln),
-                bg=BTN_ORANGE,
-                fg="#FFFFFF",
-                parent_bg=BG_DARK,
-                width=64,
-                height=22,
-                font=(UI_FAMILY, 8),
-            )
-            apply_btn.pack(side="left", padx=(0, 2))
-            add_tooltip(
-                apply_btn,
-                f"Bakes the Freq × Phase transform into shape {lane}.\n"
-                "Freq: repeats the cycle N times (2 = double frequency).\n"
-                "Phase: shifts the waveform by N degrees.",
-            )
+            add_tooltip(phase_sb, f"Phase shift in degrees for shape {lane} — updates live.")
+
+        # ------------------------------------------------------------------ #
+        # Row B: root note, fine tune, actions                               #
+        # ------------------------------------------------------------------ #
+        ctrl_row = tk.Frame(self, padx=14, bg=BG_DARK)
+        ctrl_row.pack(fill="x", pady=(4, 8))
+
+        tk.Label(ctrl_row, text="\u266a Root", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left"
+        )
+        root_dd = RoundedDropdown(
+            ctrl_row,
+            self.root_note_var,
+            ROOT_NOTES,
+            parent_bg=BG_DARK,
+            width=68,
+            height=24,
+            font=(UI_FAMILY, 8),
+        )
+        root_dd.pack(side="left", padx=(4, 2))
+        add_tooltip(root_dd, "Root note for band-limit preview and audio sweep.")
+
+        tk.Label(ctrl_row, text="Fine", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left", padx=(8, 0)
+        )
+        fine_sb = tk.Spinbox(
+            ctrl_row,
+            textvariable=self.fine_tune_var,
+            from_=-99,
+            to=99,
+            increment=1,
+            width=4,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            buttonbackground=BG_INPUT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            font=(UI_FAMILY, 8),
+        )
+        fine_sb.pack(side="left", padx=(2, 2))
+        tk.Label(ctrl_row, text="\u00a2", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left", padx=(0, 16)
+        )
+        add_tooltip(fine_sb, "Fine tune in cents (±99¢) applied to the audio sweep preview.")
+
+        swap_btn = RoundedButton(
+            ctrl_row,
+            text="Swap A \u21c4 B",
+            command=self._swap_lanes,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+            height=24,
+            font=(UI_FAMILY, 8),
+        )
+        swap_btn.pack(side="left", padx=2)
+        add_tooltip(swap_btn, "Swaps shapes A and B — reverses the morph direction.")
+
+        tk.Label(ctrl_row, text="Smooth", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left", padx=(16, 0)
+        )
+        smooth_sb = tk.Spinbox(
+            ctrl_row,
+            textvariable=self.smooth_passes,
+            from_=0,
+            to=20,
+            increment=1,
+            width=3,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            buttonbackground=BG_INPUT,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=BORDER_COLOR,
+            font=(UI_FAMILY, 8),
+        )
+        smooth_sb.pack(side="left", padx=(2, 2))
+        add_tooltip(
+            smooth_sb,
+            "Smoothing passes applied to both shapes — 0 = off.\n"
+            "Attenuates high harmonics. Fully reversible: set back to 0 to restore.",
+        )
+
+        self.prev_btn = RoundedButton(
+            ctrl_row,
+            text="\u25b6",
+            command=self._toggle_preview,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=40,
+            height=24,
+            font=(UI_FAMILY, 10, "bold"),
+        )
+        self.prev_btn.pack(side="right", padx=(2, 0))
+        add_tooltip(self.prev_btn, "Plays the A\u2192B morph sweep at the selected root note.")
 
         foot = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
         foot.pack(fill="x")
@@ -478,38 +515,39 @@ class WaveformCreatorDialog(tk.Toplevel):
         self._redraw()
 
     def _set_point(self, x, y):
-        self.lanes[self.active.get()][self._x_to_index(x)] = self._y_to_value(y)
-        self._loaded_note = None  # edited by hand, no longer the file as loaded
-
-    def _load_preset(self, label):
-        t = np.arange(self.POINTS) / float(self.POINTS)
-        self.lanes[self.active.get()] = np.asarray(self.PRESETS[label](t), dtype=float)
+        lane = self.active.get()
+        self._base_lanes[lane][self._x_to_index(x)] = self._y_to_value(y)
         self._loaded_note = None
+        self._recompute_lane(lane)
+
+    def _load_preset(self, label, lane=None):
+        lane = lane or self.active.get()
+        t = np.arange(self.POINTS) / float(self.POINTS)
+        self._base_lanes[lane] = np.asarray(self.PRESETS[label](t), dtype=float)
+        self._loaded_note = None
+        self._recompute_lane(lane)
         self._redraw()
 
-    def _load_file(self):
-        cfg = getattr(self.app, "_wt_last_config", None) or {}
+    def _on_shape_change(self, lane):
+        label = self.shape_vars[lane].get()
+        if label in self.PRESETS:
+            self._load_preset(label, lane=lane)
+
+    def _load_file_lane(self, lane):
         try:
-            hz = midi_to_hz(name_to_midi(cfg.get("note", "C2")))
+            hz = midi_to_hz(name_to_midi(self.root_note_var.get()))
         except Exception:
             hz = 65.41
-        # Auditioned at the wavetable's own root note, so what you hear in the
-        # browser is the pitch the table will be built at.
         start_dir = load_last_cycle_dir() or getattr(self.app, "import_root", None)
-        # Lazy import to avoid circular dependency
         from pyp6.ui.dialogs.audio import AudioPreviewDialog
 
         browser = AudioPreviewDialog(self, initial_dir=start_dir, cycle_hz=hz)
         self.wait_window(browser)
-        # Remembered even when the browser was cancelled - you were browsing
-        # there, and coming back to the top of the tree helps nobody.
         try:
             if browser.current_dir and os.path.isdir(browser.current_dir):
                 save_last_cycle_dir(browser.current_dir)
         except Exception:
             pass
-        # The browser took the grab; without taking it back this dialog stops
-        # being modal and clicks fall through to the one behind it.
         self._safe_grab()
         path = browser.selected_path
         if not path:
@@ -522,56 +560,60 @@ class WaveformCreatorDialog(tk.Toplevel):
             )
             return
         if info["long"]:
-            # A single cycle is a few hundred frames. Anything this long is a
-            # normal sample, and squeezing it into one cycle turns it into a
-            # dense inharmonic buzz rather than a waveform.
             keep_hz = (info["rate"] or WT_SR) / float(info["frames"]) * (WT_DRAW_POINTS // 2)
             if not dark_askyesno(
                 "Not a Single Cycle?",
-                f"This file is {info['frames']} frames long. A single-cycle "
-                f"waveform is usually a few hundred.\n\n"
-                f"The whole file becomes one cycle, so only its lowest "
-                f"{WT_DRAW_POINTS // 2} harmonics survive - everything above "
-                f"about {keep_hz:.0f} Hz in this file is discarded. What is "
-                f"left is roughly its loudness contour, not its sound.\n\n"
-                f"Load it anyway?",
+                f"This file is {info['frames']} frames long. A single-cycle waveform is usually a few hundred.\n\n"
+                f"The whole file becomes one cycle, so only its lowest {WT_DRAW_POINTS // 2} harmonics survive - "
+                f"everything above about {keep_hz:.0f} Hz in this file is discarded.\n\nLoad it anyway?",
                 parent=self,
             ):
                 return
-        self.lanes[self.active.get()] = np.asarray(pts, dtype=float)
+        self._base_lanes[lane] = np.asarray(pts, dtype=float)
+        self.shape_vars[lane].set("Custom")
         self._loaded_note = (
             f"{os.path.basename(path)}  \u00b7  {info['frames']} frames "
             f"@ {info['rate']} Hz  \u00b7  {info['harmonics']} harmonics"
         )
+        self._recompute_lane(lane)
         self._redraw()
 
-    def _smooth(self):
-        v = self.lanes[self.active.get()]
-        # Wrap-around kernel: the cycle is a loop, so the last point's
-        # neighbour is the first one.
-        self.lanes[self.active.get()] = (np.roll(v, 1) + 2.0 * v + np.roll(v, -1)) / 4.0
-        self._redraw()
+    def _load_file(self):
+        self._load_file_lane(self.active.get())
 
     def _copy_lane(self):
         src = self.active.get()
         dst = "B" if src == "A" else "A"
-        self.lanes[dst] = self.lanes[src].copy()
+        # Copy the current transformed output into the destination base
+        self._base_lanes[dst] = self.lanes[src].copy()
+        self.freq_vars[dst].set(1.0)
+        self.phase_vars[dst].set(0)
+        self._recompute_lane(dst)
         self._redraw()
 
     def _swap_lanes(self):
-        self.lanes["A"], self.lanes["B"] = self.lanes["B"].copy(), self.lanes["A"].copy()
+        # Swap base waveform data
+        self._base_lanes["A"], self._base_lanes["B"] = (
+            self._base_lanes["B"].copy(),
+            self._base_lanes["A"].copy(),
+        )
+        # Swap per-lane parameters
+        for var in (self.freq_vars, self.phase_vars, self.shape_vars):
+            a_val, b_val = var["A"].get(), var["B"].get()
+            var["A"].set(b_val)
+            var["B"].set(a_val)
+        self._recompute_lane("A")
+        self._recompute_lane("B")
         self._redraw()
 
-    def _apply_transform(self, lane):
-        """Bake freq × and phase° into lanes[lane], then reset the spinboxes."""
-        vals = self.lanes[lane].copy()
+    def _recompute_lane(self, lane):
+        """Apply freq/phase from _base_lanes[lane] → lanes[lane]."""
+        vals = self._base_lanes[lane].copy()
         N = len(vals)
-        # --- phase shift ---
         phase_deg = self.phase_vars[lane].get()
         if phase_deg:
             shift = int(round(phase_deg / 360.0 * N)) % N
             vals = np.roll(vals, shift)
-        # --- frequency multiply (subsample-accurate) ---
         freq = self.freq_vars[lane].get()
         if freq != 1.0 and freq > 0:
             idx_f = np.arange(N, dtype=float) * freq % N
@@ -579,10 +621,55 @@ class WaveformCreatorDialog(tk.Toplevel):
             i1 = (i0 + 1) % N
             frac = idx_f - np.floor(idx_f)
             vals = vals[i0] * (1.0 - frac) + vals[i1] * frac
+        n_passes = self.smooth_passes.get()
+        for _ in range(n_passes):
+            vals = (np.roll(vals, 1) + 2.0 * vals + np.roll(vals, -1)) / 4.0
         self.lanes[lane] = vals
-        self.freq_vars[lane].set(1.0)
-        self.phase_vars[lane].set(0)
-        self._redraw()
+
+    def _recompute_and_redraw_both(self):
+        """Debounced: recompute both lanes (used by global smooth spinbox)."""
+        attr = "_rr_job_both"
+        job = getattr(self, attr, None)
+        if job:
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                pass
+        try:
+            setattr(self, attr, self.after(25, self._exec_recompute_both))
+        except (tk.TclError, ValueError):
+            pass
+
+    def _exec_recompute_both(self):
+        self._rr_job_both = None
+        try:
+            self._recompute_lane("A")
+            self._recompute_lane("B")
+            self._redraw()
+        except (tk.TclError, ValueError):
+            pass
+
+    def _recompute_and_redraw(self, lane):
+        """Debounced: coalesces rapid spinbox events into a single redraw."""
+        attr = f"_rr_job_{lane}"
+        job = getattr(self, attr, None)
+        if job:
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                pass
+        try:
+            setattr(self, attr, self.after(25, lambda: self._exec_recompute(lane, attr)))
+        except (tk.TclError, ValueError):
+            pass
+
+    def _exec_recompute(self, lane, attr):
+        setattr(self, attr, None)
+        try:
+            self._recompute_lane(lane)
+            self._redraw()
+        except (tk.TclError, ValueError):
+            pass
 
     def _band_limited(self, values):
         """One cycle as the segment will hold it, at the current settings.
@@ -592,8 +679,11 @@ class WaveformCreatorDialog(tk.Toplevel):
         drew two waves on top of a drawing that shows one, at the same width.
         The band limit is what matters here, and it is identical either way.
         """
+        try:
+            midi = name_to_midi(self.root_note_var.get())
+        except Exception:
+            midi = name_to_midi("C2")
         cfg = getattr(self.app, "_wt_last_config", None) or {}
-        midi = name_to_midi(cfg.get("note", "C2"))
         cycles = max(1, int(cfg.get("cycles", 1)))
         up = int(cfg.get("up", 0))
         try:
@@ -605,61 +695,80 @@ class WaveformCreatorDialog(tk.Toplevel):
         s = WTSynth(one, 1, max(1, min(h, one // 2)))
         return wt_points_to_cycle(values, s), h, min(h, self.POINTS // 2)
 
-    _MORPH_STEPS = 11
+    _MORPH_STEPS = 12  # matches WT_MORPH_SHOWN default in SynthDialog
+
+    def _strip_geometry(self):
+        """Identical layout to SynthDialog._morph_geometry, on morph_strip."""
+        c = self.morph_strip
+        w = max(2, c.winfo_width())
+        h = max(2, c.winfo_height())
+        margin = 6
+        usable = h - 2 * margin
+        if usable < 20 or w < 60:
+            return None
+        depth_x = w * 0.22
+        depth_y = usable * 0.5
+        amp = (usable - depth_y) / 2.0
+        base_y = h - margin - amp
+        return w, h, depth_x, depth_y, amp, base_y, w - depth_x - 4
+
+    def _strip_points(self, vals, idx, shown, geo):
+        """Identical to SynthDialog._morph_points."""
+        _w, h, depth_x, depth_y, amp, base_y, front_w = geo
+        frac = idx / max(1, shown - 1)
+        ox, oy = depth_x * frac, -depth_y * frac
+        step = max(1, len(vals) // 220)
+        pts = []
+        for i in range(0, len(vals), step):
+            pts += [ox + i / (len(vals) - 1) * front_w, base_y + oy - vals[i] * amp]
+        return pts, ox, oy
 
     def _draw_morph_strip(self):
-        """Isometric depth-stack: A at front-bottom-left, B at top-right (faded)."""
+        """Isometric morph strip — same visual style as SynthDialog's morph canvas."""
         c = self.morph_strip
         c.delete("all")
-        w = c.winfo_width()
-        h = c.winfo_height()
-        if w < 20 or h < 20:
+        geo = self._strip_geometry()
+        if geo is None:
             return
-
-        n = self._MORPH_STEPS
-        a = self.lanes["A"]
-        b = self.lanes["B"]
-
-        # isometric offsets: each step shifts slightly right and up
-        total_dx = w * 0.18  # total horizontal stack shift
-        total_dy = h * 0.42  # total vertical stack shift
-        dy = total_dy / max(1, n - 1)
-
-        # front curve: bottom-left; back curve: top-right
-        # amplitude shrinks slightly toward the back (perspective)
-        front_amp = (h - total_dy) / 2 - 6
-        back_amp = front_amp * 0.60
-
-        line_col = readable_on(WAVE_COLOR, WAVE_BG, 7.0)
-        step = max(1, len(a) // 500)
-
-        # draw back→front so nearer curves occlude farther ones
-        for idx in range(n - 1, -1, -1):
-            m = idx / (n - 1)  # 0=A (front), 1=B (back)
+        w, h = geo[0], geo[1]
+        shown = self._MORPH_STEPS
+        a, b = self.lanes["A"], self.lanes["B"]
+        shapes = []
+        for j in range(shown):
+            m = j / (shown - 1)
             vals = a * (1.0 - m) + b * m
-
-            ox = m * total_dx  # x origin for this step
-            oy = (n - 1 - idx) * dy  # y origin (back = top, front = bottom)
-            mid_y = oy + (h - total_dy) / 2
-            amp = front_amp * (1.0 - m) + back_amp * m
-
-            pts = []
-            idxs = range(0, len(vals), step)
-            avail_w = w - total_dx
-            for i in idxs:
-                pts += [ox + i / (len(vals) - 1) * avail_w, mid_y - vals[i] * amp]
-
-            fade = 0.72 * m
-            col = blend_colors(line_col, WAVE_BG, fade)
-            # filled polygon to occlude curves behind
-            poly = pts + [pts[-2], mid_y + amp + 2, pts[0], mid_y + amp + 2]
+            peak = np.max(np.abs(vals))
+            shapes.append(vals / peak if peak > 1e-12 else vals)
+        line = readable_on(WAVE_COLOR, WAVE_BG, 7.0)
+        for idx in range(shown - 1, -1, -1):
+            pts, _ox, _oy = self._strip_points(shapes[idx], idx, shown, geo)
+            far = idx / max(1, shown - 1)
+            col = blend_colors(line, WAVE_BG, 0.62 * far)
+            poly = pts + [pts[-2], h, pts[0], h]
             c.create_polygon(*poly, fill=WAVE_BG, outline="")
-            lw = 2 if idx == 0 else 1
-            c.create_line(*pts, fill=col, width=lw)
+            c.create_line(*pts, fill=col, width=2 if idx == 0 else 1, tags=f"step{idx}")
+        c.create_text(4, h - 10, text="A", anchor="w", fill=FG_MUTED, font=(UI_FAMILY, 7, "bold"))
+        c.create_text(w - 4, 10, text="B", anchor="e", fill=FG_MUTED, font=(UI_FAMILY, 7))
+        self._highlight_strip_step(None)
 
-        # labels
-        c.create_text(4, h - 4, text="A", anchor="sw", fill=FG_MUTED, font=(UI_FAMILY, 7, "bold"))
-        c.create_text(w - 4, 4, text="B", anchor="ne", fill=FG_MUTED, font=(UI_FAMILY, 7))
+    def _highlight_strip_step(self, frac):
+        """Highlights the step currently sounding (frac 0..1). None clears."""
+        c = self.morph_strip
+        c.delete("stripmark")
+        if frac is None:
+            return
+        geo = self._strip_geometry()
+        if geo is None:
+            return
+        shown = self._MORPH_STEPS
+        a, b = self.lanes["A"], self.lanes["B"]
+        idx = int(min(shown - 1, max(0, round(frac * (shown - 1)))))
+        m = idx / (shown - 1)
+        vals = a * (1.0 - m) + b * m
+        peak = np.max(np.abs(vals))
+        vals = vals / peak if peak > 1e-12 else vals
+        pts, _ox, _oy = self._strip_points(vals, idx, shown, geo)
+        c.create_line(*pts, fill=ACCENT_ORANGE, width=2, tags="stripmark")
 
     def _redraw(self):
         c = self.canvas
@@ -672,10 +781,6 @@ class WaveformCreatorDialog(tk.Toplevel):
 
         src = self.active.get()
         dst = "B" if src == "A" else "A"
-        if hasattr(self, "_copy_btn"):
-            self._copy_btn.text = f"Copy to {dst}"
-            self._copy_btn._draw()
-
         vals = self.lanes[src]
         other = self.lanes[dst]
         span = mid - 6
@@ -720,7 +825,10 @@ class WaveformCreatorDialog(tk.Toplevel):
             return
         try:
             cfg = getattr(self.app, "_wt_last_config", None) or {}
-            midi = name_to_midi(cfg.get("note", "C2"))
+            try:
+                midi = name_to_midi(self.root_note_var.get()) + self.fine_tune_var.get() / 100.0
+            except Exception:
+                midi = name_to_midi(cfg.get("note", "C2"))
             audio = wt_render_sweep(
                 self._entry(), midi, int(cfg.get("cycles", 1)), int(cfg.get("up", 0)), 24
             )
@@ -729,14 +837,27 @@ class WaveformCreatorDialog(tk.Toplevel):
             dark_showerror("Preview", f"Could not play the sweep:\n{e}", parent=self)
             return
         self._preview_playing = True
+        self._strip_token = object()
         self.prev_btn.text = "\u25a0"
         self.prev_btn._draw()
         self.after(int(WT_PREVIEW_SECONDS * 1000) + 100, self._stop_preview)
+        self._tick_strip_marker(self._strip_token, time.time())
+
+    def _tick_strip_marker(self, token, t0):
+        if token is not getattr(self, "_strip_token", None):
+            return
+        elapsed = time.time() - t0
+        if elapsed >= WT_PREVIEW_SECONDS:
+            self._highlight_strip_step(None)
+            return
+        self._highlight_strip_step(elapsed / WT_PREVIEW_SECONDS)
+        self.after(40, lambda: self._tick_strip_marker(token, t0))
 
     def _stop_preview(self):
         if not self._preview_playing:
             return
         self._preview_playing = False
+        self._strip_token = None
         try:
             sd.stop()
         except Exception:
@@ -746,6 +867,7 @@ class WaveformCreatorDialog(tk.Toplevel):
             self.prev_btn._draw()
         except tk.TclError:
             pass
+        self._highlight_strip_step(None)
 
     # ----------------------------------------------------------- result
     def _entry(self):
