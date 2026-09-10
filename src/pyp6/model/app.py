@@ -203,6 +203,11 @@ class P6ManagerApp:
             "defaults and temporary files.",
         )
 
+        self._audio_out_lbl = tk.Label(top, text=self._audio_out_text())
+        style_label(self._audio_out_lbl, fg=FG_MUTED, font=(UI_FAMILY, 9))
+        self._audio_out_lbl.pack(side="right", padx=(0, 8))
+        add_tooltip(self._audio_out_lbl, "Active audio output device")
+
         self.redo_btn = RoundedButton(
             top,
             text="\u21b7",
@@ -791,11 +796,27 @@ class P6ManagerApp:
             self.main_wave_is_playing = False
             self._refresh_playing_pad_button()
 
+    def _audio_out_text(self):
+        """Return a short string describing the active audio output device."""
+        try:
+            import sounddevice as _sd
+
+            import pyp6.audio.playback as _pb
+
+            idx = _pb.SD_OUTPUT_DEVICE
+            if idx is None:
+                return "\u266a system default"
+            name = _sd.query_devices(idx)["name"]
+            return f"\u266a {name}"
+        except Exception:
+            return ""
+
     def open_settings(self):
         from pyp6.ui.dialogs.settings import SettingsDialog
 
         dialog = SettingsDialog(self.root, self)
         self.root.wait_window(dialog)
+        self._audio_out_lbl.config(text=self._audio_out_text())
 
     def open_preset_menu(self):
         menu = tk.Menu(
