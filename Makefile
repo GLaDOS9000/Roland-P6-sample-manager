@@ -8,6 +8,9 @@ install:
 start:
 	uv run pyp6
 
+debug:
+	uv run pyp6 --debug
+
 start-legacy:
 	uv run PyP6-Roland-P6-Sample-Manager_3_0_0.py
 

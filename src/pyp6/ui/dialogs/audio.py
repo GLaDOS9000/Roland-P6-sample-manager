@@ -70,6 +70,7 @@ from pyp6.constants import (
     WT_DRAW_POINTS,
     WT_SR,
 )
+from pyp6.log import logger
 from pyp6.synth.waveforms import wt_cycle_tone
 from pyp6.ui.dialogs_common import (
     add_focus_border,
@@ -413,7 +414,7 @@ class AudioPreviewDialog(FolderNavMixin, tk.Toplevel):
             entries = sorted(os.listdir(self.current_dir))
         except Exception as e:
             entries = []
-            print(f"Could not read folder: {e}")
+            logger.error(f"Could not read folder: {e}")
 
         folders, files = [], []
         for entry in entries:
@@ -1504,7 +1505,7 @@ class ChopDialog(FolderNavMixin, tk.Toplevel):
             entries = sorted(os.listdir(self.current_dir))
         except Exception as e:
             entries = []
-            print(f"Could not read folder: {e}")
+            logger.error(f"Could not read folder: {e}")
 
         folders, files = [], []
         for entry in entries:

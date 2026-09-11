@@ -17,6 +17,7 @@ from pyp6._theme_vars import (
 )
 from pyp6.config import is_preset_folder, read_preset_manifest
 from pyp6.constants import BANKS, UI_FAMILY
+from pyp6.log import logger
 from pyp6.ui.dialogs_common import (
     add_focus_border,
     center_toplevel_on_parent,
@@ -250,7 +251,7 @@ class PresetSaveDialog(FolderNavMixin, tk.Toplevel):
             )
         except Exception as e:
             entries = []
-            print(f"Could not read folder: {e}")
+            logger.error(f"Could not read folder: {e}")
         self._entries = [".."]
         self.listbox.insert(tk.END, "..")
         for entry in entries:
@@ -511,7 +512,7 @@ class PresetLoadDialog(FolderNavMixin, tk.Toplevel):
             )
         except Exception as e:
             entries = []
-            print(f"Could not read folder: {e}")
+            logger.error(f"Could not read folder: {e}")
         self._entries = [".."]
         self.listbox.insert(tk.END, "..")
         for entry in entries:

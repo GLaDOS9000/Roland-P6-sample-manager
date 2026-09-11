@@ -10,6 +10,7 @@ dependencies = [
     "numpy",
     "pedalboard",
     "tkinterdnd2",
+    "loguru",
 ]
 
 [project.optional-dependencies]

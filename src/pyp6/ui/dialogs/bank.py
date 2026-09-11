@@ -24,6 +24,7 @@ from pyp6.config import (
     save_last_export_dir,
 )
 from pyp6.constants import BANKS, MAX_UPLOAD_BYTES, PADS, UI_FAMILY
+from pyp6.log import logger
 from pyp6.ui.dialogs.file import FolderPickerDialog
 from pyp6.ui.dialogs_common import (
     center_toplevel_on_parent,
@@ -574,7 +575,7 @@ class ImportBankDialog(tk.Toplevel):
         try:
             entries = sorted(os.listdir(folder))
         except Exception as e:
-            print(f"Could not scan {folder}: {e}")
+            logger.error(f"Could not scan {folder}: {e}")
             return []
         out = []
         for entry in entries:
@@ -698,7 +699,7 @@ class ImportBankDialog(tk.Toplevel):
                 try:
                     shutil.copy2(prm_src, os.path.splitext(dest)[0] + ".PRM")
                 except Exception as e:
-                    print(f"Could not copy settings file {prm_src}: {e}")
+                    logger.error(f"Could not copy settings file {prm_src}: {e}")
                 break
         return dest
 
@@ -731,7 +732,7 @@ class ImportBankDialog(tk.Toplevel):
                 # One unreadable/corrupt file on the device must not abort
                 # the whole import and leave the remaining pads untouched
                 # with self.app.slots never re-synced below.
-                print(f"Could not import PAD_{pad} from {src}: {e}")
+                logger.error(f"Could not import PAD_{pad} from {src}: {e}")
                 failed.append(pad)
                 self.app.pad_widgets[pad].clear_pad()
 

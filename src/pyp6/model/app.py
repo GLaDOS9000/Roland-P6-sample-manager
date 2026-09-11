@@ -75,6 +75,7 @@ from pyp6.constants import (
     UI_FAMILY,
     WAVETABLE_DIR,
 )
+from pyp6.log import logger
 from pyp6.model.sample_slot import SampleSlot
 from pyp6.synth.engine import render_prm
 from pyp6.theme import blend_colors, readable_on
@@ -91,7 +92,6 @@ from pyp6.ui.waveform import draw_truncate_overlay, draw_waveform_on_canvas
 from pyp6.ui.widgets import RoundedButton, RoundedDropdown, RoundedPanel, RoundedScrollbar
 
 # These are set from __main__.py before the app is constructed.
-DEBUG_STARTUP = False
 
 
 def _log_timing(label):  # replaced by __main__
@@ -476,12 +476,12 @@ class P6ManagerApp:
             if os.path.exists(logo_path):
                 full_img = tk.PhotoImage(file=logo_path)
         except Exception as e:
-            print(f"Could not load pyp6logo.png, using the built-in logo: {e}")
+            logger.debug(f"Could not load pyp6logo.png, using the built-in logo: {e}")
         if full_img is None:
             try:
                 full_img = tk.PhotoImage(data=PYP6_LOGO_PNG)
             except Exception as e:
-                print(f"Could not build the logo: {e}")
+                logger.error(f"Could not build the logo: {e}")
                 return
         try:
             self._logo_img = full_img.subsample(2, 2)  # ~half size
@@ -490,7 +490,7 @@ class P6ManagerApp:
             )
             logo_label.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
         except Exception as e:
-            print(f"Could not place the logo: {e}")
+            logger.error(f"Could not place the logo: {e}")
 
     def _resolve_import_root_async(self):
         result_queue = queue.Queue()
@@ -499,8 +499,7 @@ class P6ManagerApp:
             t0 = _time.perf_counter()
             resolved = load_last_import_root()
             elapsed = _time.perf_counter() - t0
-            if DEBUG_STARTUP:
-                print(f"[startup]   background import-root resolution took {elapsed:.3f}s")
+            logger.debug(f"[startup]   background import-root resolution took {elapsed:.3f}s")
             result_queue.put(resolved)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -977,7 +976,7 @@ class P6ManagerApp:
                 _log_timing(f"  drop target registered on {label}")
                 return True
             except Exception as e:
-                print(f"Drop target registration on {label} failed: {e}")
+                logger.warning(f"Drop target registration on {label} failed: {e}")
                 return False
 
         register(self.pad_container, "pad container")
@@ -986,7 +985,7 @@ class P6ManagerApp:
         if self._dnd_registered:
             self._dnd_targets_ready = True
         else:
-            print(
+            logger.warning(
                 "Drag & drop: no drop target could be registered - "
                 "dropping files onto pads will not work this session."
             )
@@ -1126,7 +1125,7 @@ class P6ManagerApp:
         try:
             names = os.listdir(WAVETABLE_DIR)
         except Exception as e:
-            print(f"Could not read the wavetables folder: {e}")
+            logger.error(f"Could not read the wavetables folder: {e}")
             return 0
         for name in names:
             if not name.upper().endswith((".WAV", ".PRM")):
@@ -1139,9 +1138,9 @@ class P6ManagerApp:
                 os.remove(full)
                 removed += 1
             except Exception as e:
-                print(f"Could not remove orphaned wavetable {name}: {e}")
+                logger.error(f"Could not remove orphaned wavetable {name}: {e}")
         if removed:
-            print(f"Removed {removed} orphaned wavetable file(s).")
+            logger.info(f"Removed {removed} orphaned wavetable file(s).")
         return removed
 
     def clear_pads_referencing_missing_files(self):
@@ -1176,11 +1175,11 @@ class P6ManagerApp:
         try:
             problems, strays = verify_preset_folder(preset_dir)
         except Exception as e:
-            print(f"Preset check failed: {e}")
+            logger.error(f"Preset check failed: {e}")
             return True
         if not problems:
             if strays:
-                print(f"Preset {preset_dir}: unreferenced files: {', '.join(strays)}")
+                logger.info(f"Preset {preset_dir}: unreferenced files: {', '.join(strays)}")
             return True
         lines = "\n".join(f"\u2022 {p}" for p in problems[:12])
         if len(problems) > 12:
@@ -1208,7 +1207,7 @@ class P6ManagerApp:
             if bank in banks_to_save:
                 continue
             if not os.path.isdir(os.path.join(preset_dir, f"BANK_{bank}")):
-                print(f"Preset {name}: dropping BANK_{bank} - its folder is gone.")
+                logger.warning(f"Preset {name}: dropping BANK_{bank} — its folder is gone.")
                 banks_data.pop(bank, None)
             else:
                 carried.append(bank)
@@ -1243,7 +1242,9 @@ class P6ManagerApp:
                                 raise OSError("copy contains no audio frames")
                 except Exception as e:
                     detail = f"{type(e).__name__}: {e or 'file is empty or truncated'}"
-                    print(f"Could not copy sample for BANK_{bank}/PAD_{pad}: {detail}  ({src})")
+                    logger.error(
+                        f"Could not copy sample for BANK_{bank}/PAD_{pad}: {detail}  ({src})"
+                    )
                     copy_failures.append(
                         f"BANK_{bank}/PAD_{pad}: {os.path.basename(src)} - {detail}"
                     )
@@ -1254,7 +1255,7 @@ class P6ManagerApp:
                     try:
                         shutil.copy2(prm_src, os.path.splitext(dest)[0] + ".PRM")
                     except Exception as e:
-                        print(f"Could not copy settings file for BANK_{bank}/PAD_{pad}: {e}")
+                        logger.error(f"Could not copy settings file for BANK_{bank}/PAD_{pad}: {e}")
                 rel_path = f"BANK_{bank}/" + os.path.relpath(dest, staging_dir).replace(os.sep, "/")
                 pad_entries[str(pad)] = {
                     "filepath": rel_path,
@@ -1273,7 +1274,7 @@ class P6ManagerApp:
                 os.rename(staging_dir, bank_dir)
             except Exception as e:
                 shutil.rmtree(staging_dir, ignore_errors=True)
-                print(f"Could not finalize BANK_{bank} in preset: {e}")
+                logger.error(f"Could not finalize BANK_{bank} in preset: {e}")
                 continue
 
             banks_data[bank] = {
@@ -1676,7 +1677,7 @@ class P6ManagerApp:
                         poly=state.get("wt_poly", False),
                     )
                 except Exception as e:
-                    print(f"PAD_{pad}: could not build wavetable settings: {e}")
+                    logger.error(f"PAD_{pad}: could not build wavetable settings: {e}")
             prm_src = self._find_prm_for(filepath) if include_prm and not prm_text else None
             prm_dest = os.path.splitext(dest)[0] + ".PRM" if (prm_src or prm_text) else None
 
@@ -1690,9 +1691,9 @@ class P6ManagerApp:
                         try:
                             os.remove(existing_full)
                         except Exception as e:
-                            print(f"Could not delete old file ({existing_full}): {e}")
+                            logger.error(f"Could not delete old file ({existing_full}): {e}")
             except Exception as e:
-                print(f"Could not read pad folder ({pad_path}): {e}")
+                logger.error(f"Could not read pad folder ({pad_path}): {e}")
 
             if prm_text:
                 try:
@@ -1708,7 +1709,7 @@ class P6ManagerApp:
                     if os.path.abspath(prm_src) != os.path.abspath(prm_dest):
                         shutil.copy2(prm_src, prm_dest)
                 except Exception as e:
-                    print(f"PAD_{pad}: could not copy settings file: {e}")
+                    logger.error(f"PAD_{pad}: could not copy settings file: {e}")
 
             if os.path.abspath(export_path) == os.path.abspath(dest):
                 copied += 1
@@ -1784,7 +1785,7 @@ class P6ManagerApp:
             shutil.copy2(src, dst)
             state["filepath"] = dst
         except Exception as e:
-            print(f"wavetable copy failed, sharing the original: {e}")
+            logger.warning(f"wavetable copy failed, sharing the original: {e}")
         return state
 
     def transfer_bank(self, action, target):
@@ -1881,7 +1882,7 @@ class P6ManagerApp:
                             if fname.lower().endswith((".wav", ".mp3")):
                                 files_found.append(f"BANK_{bank}/PAD_{pad}/{fname}")
                     except Exception as e:
-                        print(f"Could not read {pad_path}: {e}")
+                        logger.error(f"Could not read {pad_path}: {e}")
 
         if not files_found:
             self.show_status("The IMPORT folder contains no samples in any bank.", kind="info")

@@ -20,6 +20,7 @@ from pyp6.constants import (
     WAVETABLE_DIR,
     WT_SR,
 )
+from pyp6.log import logger
 
 
 def resource_path(relative_path):
@@ -39,7 +40,7 @@ def ensure_app_dirs():
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
     except Exception as e:
-        print(f"Could not create app folders: {e}")
+        logger.error(f"Could not create app folders: {e}")
     return TEMP_DIR
 
 
@@ -149,7 +150,7 @@ def save_config_value(key, value):
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f)
     except Exception as e:
-        print(f"Could not save configuration: {e}")
+        logger.error(f"Could not save configuration: {e}")
 
 
 def load_last_import_root():
@@ -325,7 +326,7 @@ def save_drawn_library(library):
             )
         return True
     except Exception as e:
-        print(f"Could not save the waveform library: {e}")
+        logger.error(f"Could not save the waveform library: {e}")
         return False
 
 

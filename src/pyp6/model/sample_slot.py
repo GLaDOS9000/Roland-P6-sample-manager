@@ -49,6 +49,7 @@ from pyp6.constants import (
     UI_FAMILY,
     WT_SEGMENTS,
 )
+from pyp6.log import logger
 from pyp6.synth.engine import (
     render_prm,
     wavetable_summary,
@@ -498,7 +499,7 @@ class SampleSlot:
                     )
                 )
         except Exception as e:
-            print(f"PAD_{self.pad_num}: could not rewrite .PRM: {e}")
+            logger.error(f"PAD_{self.pad_num}: could not rewrite .PRM: {e}")
 
     def on_wt_patch_changed(self, _value=None):
         if self.wt_patch.get() == "Pad":
@@ -641,7 +642,7 @@ class SampleSlot:
         try:
             path, converted = convert_to_wav_if_needed(path)
         except Exception as e:
-            print(f"Error in set_file for PAD_{self.pad_num}: {e}")
+            logger.error(f"Error in set_file for PAD_{self.pad_num}: {e}")
             return
         if not path.lower().endswith(".wav"):
             # Conversion failed (missing pydub/ffmpeg or a broken file). Loading
@@ -679,10 +680,9 @@ class SampleSlot:
                 closest_rate = min(TARGET_RATES, key=lambda r: abs(r - detected_rate))
                 self.target_rate.set(closest_rate)
             except Exception as e:
-                print(
+                logger.error(
                     f"Could not detect sample rate for PAD_{self.pad_num}: "
-                    f"{type(e).__name__}: {e or 'file is empty or truncated'} "
-                    f"({path})"
+                    f"{type(e).__name__}: {e or 'file is empty or truncated'} ({path})"
                 )
 
             self.pitch_cents.set(0)
@@ -739,7 +739,7 @@ class SampleSlot:
             # the app, a stale preset reference, etc.) - clear the pad
             # instead of leaving it in a broken half-loaded state where
             # rate detection etc. would silently fail.
-            print(
+            logger.warning(
                 f"PAD_{self.pad_num}: referenced file no longer exists, clearing pad: "
                 f"{state['filepath']}"
             )
@@ -1244,7 +1244,7 @@ class SampleSlot:
                     ]
                 except Exception as e:
                     files_in_pad = []
-                    print(f"Could not read pad folder ({pad_path}): {e}")
+                    logger.error(f"Could not read pad folder ({pad_path}): {e}")
                 if files_in_pad:
                     file_list_str = ", ".join(files_in_pad)
                     msg_line1 = (

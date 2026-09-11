@@ -24,6 +24,7 @@ from pyp6._theme_vars import (
     FG_TEXT,
 )
 from pyp6.constants import PREVIEW_MIN_H, PREVIEW_MIN_W, UI_FAMILY
+from pyp6.log import logger
 from pyp6.ui.dialogs_common import (
     add_focus_border,
     center_toplevel_on_parent,
@@ -141,7 +142,7 @@ class FolderPickerDialog(FolderNavMixin, tk.Toplevel):
             )
         except Exception as e:
             entries = []
-            print(f"Could not read folder: {e}")
+            logger.error(f"Could not read folder: {e}")
         self.listbox.insert(tk.END, "..")
         for entry in entries:
             self.listbox.insert(tk.END, entry)
