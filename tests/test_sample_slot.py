@@ -7,6 +7,9 @@ This lets the core logic run on headless CI without mocking the entire
 Tkinter module.
 """
 
+import sys
+from unittest.mock import MagicMock
+
 import pytest
 
 from pyp6.constants import PITCH_MAX_CENTS, PITCH_MIN_CENTS
@@ -82,14 +85,28 @@ class _App:
 
 
 @pytest.fixture
-def slot():
+def slot(monkeypatch):
     """A SampleSlot that skipped __init__, populated with fake attributes.
 
     Only the attributes that the methods under test actually access are
     set — anything else remains unset, so an accidental call into an
     untested code path will raise AttributeError rather than silently
     passing.
+
+    pedalboard ships a compiled C extension that requires AVX instructions
+    not available on all CI runner CPUs — importing it causes a fatal SIGILL.
+    We stub it here (fixture scope) so the mock is active only during each
+    test and is automatically reverted by monkeypatch afterward.  This avoids
+    polluting the pytest session and breaking test_audio_conversion.py, which
+    needs the real pedalboard.
     """
+    monkeypatch.setitem(sys.modules, "pedalboard", MagicMock())
+    monkeypatch.setitem(sys.modules, "pedalboard.io", MagicMock())
+    # pyp6.audio.conversion caches its pedalboard reference at import time.
+    # Evict it so the re-import picks up the mock above.
+    monkeypatch.delitem(sys.modules, "pyp6.audio.conversion", raising=False)
+    monkeypatch.delitem(sys.modules, "pyp6.model.sample_slot", raising=False)
+
     from pyp6.model.sample_slot import SampleSlot
 
     s = object.__new__(SampleSlot)
