@@ -48,7 +48,7 @@ jobs:
 
       - name: Install system deps (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y libportaudio2
+        run: sudo apt-get install -y libportaudio2 python3-tk
 
       - name: Install dependencies
         run: uv sync --extra test
