@@ -4,6 +4,7 @@ import numpy as np
 import soundfile as sf
 
 from pyp6.config import derived_temp_path
+from pyp6.log import logger
 
 
 def find_zero_crossing(data, target_idx, search_radius):
@@ -96,6 +97,7 @@ def ensure_mono_wav(path):
     try:
         data, fs = sf.read(path, dtype="float32")
     except Exception:
+        logger.warning(f"ensure_mono_wav: could not read {path!r}")
         return path
     if data.ndim == 1:
         return path
@@ -104,6 +106,7 @@ def ensure_mono_wav(path):
     try:
         sf.write(out_path, mono, fs, subtype="PCM_16")
     except Exception:
+        logger.warning(f"ensure_mono_wav: could not write mono version of {path!r}")
         return path
     return out_path
 

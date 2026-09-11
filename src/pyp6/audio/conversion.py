@@ -11,6 +11,7 @@ from pyp6.audio.info import get_wav_info, get_wav_sample_width
 from pyp6.audio.playback import AUDIO_AVAILABLE
 from pyp6.config import temp_path
 from pyp6.constants import MAX_SECONDS
+from pyp6.log import logger
 
 
 def pitch_speed_factor(cents):
@@ -90,6 +91,10 @@ def compute_export_ready_path(filepath, target_rate, pitch_cents=0, force_mono=F
             f.write(audio)
         return out_path
     except Exception:
+        logger.exception(
+            f"compute_export_ready_path failed for {filepath!r} "
+            f"(target_rate={target_rate}, pitch_cents={pitch_cents}, force_mono={force_mono})"
+        )
         return filepath
 
 

@@ -32,6 +32,7 @@ from pyp6.constants import (
     CONFIG_FILE,
     TEMP_DIR,
 )
+from pyp6.log import LOG_FILE
 
 # These are set at startup from __main__.py.
 DND_AVAILABLE = False
@@ -118,6 +119,7 @@ def collect_about_info():
     rows.append(("Drag & drop", dnd_status_text()))
     rows.append(("Settings file", CONFIG_FILE))
     rows.append(("Temp folder", TEMP_DIR))
+    rows.append(("Log file", LOG_FILE))
     return rows
 
 

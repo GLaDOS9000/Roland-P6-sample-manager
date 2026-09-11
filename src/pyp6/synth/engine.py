@@ -18,6 +18,7 @@ from pyp6.constants import (
     WT_SEGMENTS,
     WT_SR,
 )
+from pyp6.log import logger
 from pyp6.synth.waveforms import (
     wt_family_entry,
     wt_selection_names,
@@ -107,6 +108,10 @@ def wt_harmonics_for(L, cycles, up_semitones):
 
 def wt_build(selection, midi, cycles, up_semitones, progress=None):
     """Returns (pcm_int16, rows, meta)."""
+    logger.info(
+        f"wt_build: {len(selection)} famil{'y' if len(selection) == 1 else 'ies'}, "
+        f"midi={midi}, cycles={cycles}, up={up_semitones}st"
+    )
     L, f_real, cents = wt_tuning_info(midi, cycles)
     if L > WT_MAX_SEG_FRAMES:
         raise ValueError(
@@ -137,6 +142,10 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None):
 
     audio = np.concatenate(segs)
     pcm = (np.clip(audio, -1.0, 1.0) * 32767.0).astype("<i2")
+    logger.info(
+        f"wt_build: done — {step} segments, {len(audio)} frames "
+        f"({len(audio) / WT_SR:.2f}s), h={h}/{h_max}"
+    )
     meta = dict(
         L=int(L),
         cycles=int(cycles),

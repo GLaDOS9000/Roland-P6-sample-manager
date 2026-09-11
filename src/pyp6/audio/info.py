@@ -6,6 +6,7 @@ import wave
 
 from pyp6.audio.playback import AUDIO_AVAILABLE
 from pyp6.constants import MAX_SECONDS
+from pyp6.log import logger
 
 
 def get_wav_info(path):
@@ -79,7 +80,8 @@ def _get_mp3_duration(path):
 
         with AudioFile(path) as f:
             return f.frames / f.samplerate
-    except Exception:
+    except Exception as e:
+        logger.debug(f"_get_mp3_duration: could not read {path!r}: {e}")
         return None
 
 

@@ -236,6 +236,7 @@ class PresetSaveDialog(FolderNavMixin, tk.Toplevel):
         try:
             os.makedirs(new_path)
         except Exception as e:
+            logger.exception(f"Could not create folder {new_path!r}")
             dark_showerror("Could Not Create Folder", str(e), parent=self)
             return
         self.navigate_to(new_path)
@@ -336,6 +337,9 @@ class PresetSaveDialog(FolderNavMixin, tk.Toplevel):
         try:
             self.result_dir = self.app.save_preset_to_folder(self.current_dir, name, banks_to_save)
         except Exception as e:
+            logger.exception(
+                f"save_preset_to_folder failed: dir={self.current_dir!r}, name={name!r}"
+            )
             dark_showerror("Save Error", str(e), parent=self)
             return
         self.destroy()

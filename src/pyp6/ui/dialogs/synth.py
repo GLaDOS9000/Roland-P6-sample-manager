@@ -57,6 +57,7 @@ from pyp6.constants import (
     WT_SEGMENTS,
     WT_SR,
 )
+from pyp6.log import logger
 from pyp6.synth.engine import (
     WTSynth,
     midi_to_hz,
@@ -710,6 +711,7 @@ class WaveformCreatorDialog(tk.Toplevel):
         try:
             pts, info = wt_load_cycle_file(path, self.POINTS)
         except Exception as e:
+            logger.exception(f"wt_load_cycle_file failed for {path!r}")
             dark_showerror(
                 "Load Waveform", f"Could not read this file as a waveform cycle:\n{e}", parent=self
             )
@@ -996,6 +998,7 @@ class WaveformCreatorDialog(tk.Toplevel):
             )
             play_audio(audio, WT_SR)
         except Exception as e:
+            logger.exception("WaveformCreatorDialog preview failed")
             dark_showerror("Preview", f"Could not play the sweep:\n{e}", parent=self)
             return
         self._preview_playing = True
@@ -2166,6 +2169,7 @@ class SynthDialog(tk.Toplevel):
             audio = wt_render_sweep(self._resolve(self.prev_family), midi, cycles, up, steps)
             play_audio(audio, WT_SR)
         except Exception as e:
+            logger.exception(f"SynthDialog preview failed for family {self.prev_family!r}")
             self._status(f"Preview failed: {e}", "bad")
             return
         self.prev_playing = True
@@ -2253,6 +2257,7 @@ class SynthDialog(tk.Toplevel):
         try:
             pcm, rows, meta = wt_build(self._resolved_selection(), midi, cycles, up)
         except Exception as e:
+            logger.exception("SynthDialog wt_build failed")
             self.btn_apply.config_state("normal")
             self._status("")
             dark_showerror("Wavetable", str(e), parent=self)

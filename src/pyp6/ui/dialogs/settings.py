@@ -1,5 +1,8 @@
 """Settings and About dialogs: SettingsDialog, AboutDialog."""
 
+import os
+import subprocess
+import sys
 import tkinter as tk
 
 import pyp6.audio.playback as _pb
@@ -616,6 +619,17 @@ class SettingsDialog(tk.Toplevel):
             about_btn,
             "Version, author and the state of the optional components (pedalboard, drag & drop).",
         )
+        log_btn = RoundedButton(
+            btn_row,
+            text="Open Log",
+            command=self._open_log_file,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            parent_bg=BG_DARK,
+            width=90,
+        )
+        log_btn.pack(side="left", padx=4)
+        add_tooltip(log_btn, "Open the application log file in the system's default text viewer.")
 
         self.transient(parent)
         center_toplevel_on_parent(self, parent)
@@ -689,6 +703,27 @@ class SettingsDialog(tk.Toplevel):
 
         except Exception as exc:
             self._dev_status_lbl.config(text=f"Failed: {exc}", fg="#FF6B6B")
+
+    def _open_log_file(self):
+        from pyp6.log import LOG_FILE
+
+        if not os.path.isfile(LOG_FILE):
+            dark_showinfo(
+                "No Log File",
+                f"No log file found at:\n{LOG_FILE}\n\n"
+                "It is created on first run with --debug or --log-level DEBUG.",
+                parent=self,
+            )
+            return
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["open", LOG_FILE], check=False)
+            elif sys.platform.startswith("win"):
+                os.startfile(LOG_FILE)  # type: ignore[attr-defined]
+            else:
+                subprocess.run(["xdg-open", LOG_FILE], check=False)
+        except Exception as e:
+            dark_showerror("Could Not Open Log", str(e), parent=self)
 
     def _open_about(self):
         """Hands the modal grab over to the About window and takes it back

@@ -47,6 +47,7 @@ from pyp6.audio.processing import (
 )
 from pyp6.config import format_duration
 from pyp6.constants import MAIN_MIN_W, UI_FAMILY, ZOOM_BAR_RESERVE
+from pyp6.log import logger
 from pyp6.ui.dialogs_common import (
     add_tooltip,
     center_toplevel_on_parent,
@@ -455,6 +456,7 @@ class PadWaveformViewDialog(tk.Toplevel):
             # reaching transient()/center_toplevel_on_parent()/_safe_grab()
             # below - otherwise the window is created but never properly
             # positioned/shown, which looks like an empty black rectangle.
+            logger.exception(f"PadWaveformViewDialog init failed for {self.filepath!r}")
             dark_showerror("Could Not Load Sample", str(e), parent=self)
 
     def _update_view_window(self):
@@ -805,6 +807,7 @@ class PadWaveformViewDialog(tk.Toplevel):
             self.play_start_time = time.time()
             self.update_playhead()
         except Exception as e:
+            logger.exception("PadWaveformViewDialog playback failed")
             dark_showerror("Playback Error", str(e), parent=self)
 
     def stop_play(self):
@@ -846,6 +849,7 @@ class PadWaveformViewDialog(tk.Toplevel):
                     result_path, self.fade_in_seconds, self.fade_out_seconds
                 )
         except Exception as e:
+            logger.exception(f"PadWaveformViewDialog apply_changes failed for {self.filepath!r}")
             dark_showerror("Edit Error", str(e), parent=self)
             return
 

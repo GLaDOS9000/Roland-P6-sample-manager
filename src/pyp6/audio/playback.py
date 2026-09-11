@@ -1,5 +1,7 @@
 """Audio availability and playback helpers."""
 
+from pyp6.log import logger
+
 try:
     import pedalboard  # noqa: F401
 
@@ -31,11 +33,12 @@ try:
                     idx = api["default_output_device"]
                     try:
                         sd.check_output_settings(device=idx)
+                        logger.debug(f"Audio output: Core Audio default device index {idx}")
                         return idx
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as e:
+                        logger.debug(f"Audio output: Core Audio default device {idx} rejected: {e}")
+        except Exception as e:
+            logger.debug(f"Audio output: could not query host APIs: {e}")
 
         try:
             devices = sd.query_devices()
@@ -43,12 +46,14 @@ try:
                 if dev["max_output_channels"] > 0:
                     try:
                         sd.check_output_settings(device=i)
+                        logger.debug(f"Audio output: fallback to device {i} ({dev['name']!r})")
                         return i
                     except Exception:
                         continue
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Audio output: device enumeration failed: {e}")
 
+        logger.warning("Audio output: no usable output device found; using sounddevice default")
         return None
 
     SD_OUTPUT_DEVICE = _find_output_device()
@@ -65,13 +70,14 @@ try:
         sd.stop()
         try:
             sd.play(data, samplerate, device=SD_OUTPUT_DEVICE)
-        except Exception:
+        except Exception as e:
             # Force PortAudio to re-enumerate devices (handles hot-plug).
+            logger.warning(f"Audio playback failed ({e}); forcing PortAudio re-enumerate")
             try:
                 sd._terminate()
                 sd._initialize()
-            except Exception:
-                pass
+            except Exception as reinit_err:
+                logger.debug(f"PortAudio reinit error: {reinit_err}")
             SD_OUTPUT_DEVICE = _find_output_device()
             sd.play(data, samplerate, device=SD_OUTPUT_DEVICE)
 
