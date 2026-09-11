@@ -381,7 +381,7 @@ class SampleSlot:
     def open_synth(self):
         """Opens the wavetable builder for this pad, pre-filled with whatever
         was used last time so settings can be reviewed and adjusted."""
-        from pyp6.ui.dialogs.synth import SynthDialog
+        from pyp6.ui.dialogs.synth_dialog import SynthDialog
 
         cfg = (self.wavetable or {}).get("config")
         dlg = SynthDialog(
@@ -833,7 +833,7 @@ class SampleSlot:
             self.app.swap_pads(self.pad_num, target)
 
     def load_sample(self):
-        from pyp6.ui.dialogs.audio import AudioPreviewDialog
+        from pyp6.ui.dialogs.audio_preview import AudioPreviewDialog
 
         if hasattr(self.app, "stop_playback_waveform"):
             self.app.stop_playback_waveform()
@@ -865,7 +865,7 @@ class SampleSlot:
             save_last_sample_dir(chosen_dir)
 
     def open_chop(self):
-        from pyp6.ui.dialogs.audio import ChopDialog
+        from pyp6.ui.dialogs.chop import ChopDialog
 
         if hasattr(self.app, "stop_playback_waveform"):
             self.app.stop_playback_waveform()
