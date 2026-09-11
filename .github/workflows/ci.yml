@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Linting ──────────────────────────────────────────────────────────────
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dev dependencies
+        run: uv sync --extra dev
+
+      - name: ruff check
+        run: uv run ruff check src tests
+
+      - name: ruff format
+        run: uv run ruff format --check src tests
+
+  # ── Tests ─────────────────────────────────────────────────────────────────
+  test:
+    name: pytest / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed for git diff on PRs
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libportaudio2
+
+      - name: Install dependencies
+        run: uv sync --extra test
+
+      # ── Compute test scope for PRs ────────────────────────────────────────
+      #
+      # Naming convention: src/pyp6/<a>/<b>.py → tests/test_<a>_<b>.py
+      #                    src/pyp6/<a>.py      → tests/test_<a>.py
+      #
+      # Full suite is forced when pyproject.toml or conftest.py changes.
+      # On a push to main the full suite always runs.
+      - name: Compute test scope (PR only)
+        id: scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          base=origin/${{ github.base_ref }}
+          changed=$(git diff --name-only "$base"...HEAD)
+          echo "Changed files:"
+          echo "$changed"
+
+          run_all=false
+          test_files=""
+
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+
+            # Infrastructure / config changes → full suite
+            if [[ "$f" == pyproject.toml || "$f" == tests/conftest.py ]]; then
+              run_all=true
+              break
+            fi
+
+            # A test file was changed directly → include it
+            if [[ "$f" == tests/test_*.py ]]; then
+              test_files="$test_files $f"
+              continue
+            fi
+
+            # Source file → derive the matching test file
+            if [[ "$f" == src/pyp6/*.py || "$f" == src/pyp6/*/*.py ]]; then
+              rel="${f#src/pyp6/}"    # strip src/pyp6/ prefix
+              rel="${rel%.py}"         # strip .py suffix
+              rel="${rel//\//_}"       # slashes → underscores
+              candidate="tests/test_${rel}.py"
+              [[ -f "$candidate" ]] && test_files="$test_files $candidate"
+            fi
+          done <<< "$changed"
+
+          if $run_all; then
+            echo "scope=all" >> "$GITHUB_OUTPUT"
+            echo "Scope: full suite (pyproject.toml or conftest.py changed)"
+          elif [[ -n "$test_files" ]]; then
+            unique=$(echo "$test_files" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
+            echo "scope=partial" >> "$GITHUB_OUTPUT"
+            echo "tests=$unique" >> "$GITHUB_OUTPUT"
+            echo "Scope: $unique"
+          else
+            echo "scope=none" >> "$GITHUB_OUTPUT"
+            echo "Scope: no matching test files found"
+          fi
+
+      # ── Test runs ─────────────────────────────────────────────────────────
+      - name: Run full suite (push to main)
+        if: github.event_name == 'push'
+        run: uv run --extra test pytest -v
+
+      - name: Run full suite (PR — infra changed)
+        if: github.event_name == 'pull_request' && steps.scope.outputs.scope == 'all'
+        run: uv run --extra test pytest -v
+
+      - name: Run matched tests (PR)
+        if: github.event_name == 'pull_request' && steps.scope.outputs.scope == 'partial'
+        run: uv run --extra test pytest -v ${{ steps.scope.outputs.tests }}
+
+      - name: Skip (no matching tests)
+        if: github.event_name == 'pull_request' && steps.scope.outputs.scope == 'none'
+        run: echo "No test files match the changed source files — skipping."
