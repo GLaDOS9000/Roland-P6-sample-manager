@@ -23,14 +23,10 @@ except ImportError:
     sf = None
 
 from pyp6._theme_vars import (
-    ACCENT_BLUE,
-    ACCENT_GREEN,
     ACCENT_ORANGE,
-    ACCENT_RED,
     BG_DARK,
     BG_INPUT,
     BG_PANEL,
-    BORDER_COLOR,
     BTN_BLUE,
     BTN_GREEN,
     FG_MUTED,
@@ -57,17 +53,12 @@ from pyp6.ui.dialogs_common import (
     style_label,
     style_toplevel,
 )
-from pyp6.ui.waveform import (
-    draw_bracket_marker,
-    draw_truncate_overlay,
-    draw_waveform_on_canvas,
-    max_zoom_for,
-    min_trim_fraction,
-)
+from pyp6.ui.waveform import draw_truncate_overlay
+from pyp6.ui.waveform_canvas_mixin import WaveformCanvasMixin
 from pyp6.ui.widgets import RoundedButton, RoundedPanel, RoundedScrollbar
 
 
-class PadWaveformViewDialog(tk.Toplevel):
+class PadWaveformViewDialog(WaveformCanvasMixin, tk.Toplevel):
     """Post-hoc editing view for a pad's already-loaded sample: trim
     markers + zoom, the same interaction as the Load dialog's waveform
     pane, plus Normalize. "Apply to Pad" writes the edited result back
@@ -459,37 +450,17 @@ class PadWaveformViewDialog(tk.Toplevel):
             logger.exception(f"PadWaveformViewDialog init failed for {self.filepath!r}")
             dark_showerror("Could Not Load Sample", str(e), parent=self)
 
-    def _update_view_window(self):
-        self.zoom_factor = max(1.0, self.zoom_factor)
-        self.view_span_frac = 1.0 / self.zoom_factor
-        start = self.center_frac - self.view_span_frac / 2.0
-        start = max(0.0, min(start, 1.0 - self.view_span_frac))
-        self.view_start_frac = start
+    # ------------------------------------------------------------------ hooks
 
-    def frac_to_x(self, frac):
-        if self.view_span_frac <= 0:
-            return 0
-        return (frac - self.view_start_frac) / self.view_span_frac * self.wave_width
+    def _trim_is_locked(self):
+        return self.is_chop_sample
 
-    def x_to_frac(self, x):
-        return self.view_start_frac + (x / self.wave_width) * self.view_span_frac
+    def _before_redraw_markers(self):
+        self._redraw_length_limit_overlay()
 
-    def render_and_draw_wave(self):
-        self._update_view_window()
-        self._render_wave_at_current_view()
-
-    def _on_wave_canvas_resize(self, event=None):
-        new_width = event.width if event else self.wave_canvas.winfo_width()
-        new_height = event.height if event else self.wave_canvas.winfo_height()
-        changed = False
-        if new_width > 10 and new_width != self.wave_width:
-            self.wave_width = new_width
-            changed = True
-        if new_height > 10 and new_height != self.wave_height:
-            self.wave_height = new_height
-            changed = True
-        if changed and self._wave_data is not None:
-            self._render_wave_at_current_view()
+    def _on_playhead_done(self):
+        self.play_btn.text = "\u25b6 Preview"
+        self.play_btn._draw()
 
     def _display_data_with_edits(self, data):
         """Returns a copy of the FULL (untrimmed) waveform data with
@@ -522,64 +493,6 @@ class PadWaveformViewDialog(tk.Toplevel):
         result[start_i:end_i] = region
         return result
 
-    def _render_wave_at_current_view(self):
-        if hasattr(self, "zoom_label"):
-            self.zoom_label.config(text=f"{self.zoom_factor:.1f}x")
-        self._update_scrollbar_visibility()
-
-        self.wave_canvas.delete("all")
-        if self._wave_data is None:
-            self.wave_canvas.create_text(
-                self.wave_width // 2, self.wave_height // 2, text="(No preview)", fill=FG_MUTED
-            )
-            return
-
-        end_frac = self.view_start_frac + self.view_span_frac
-        if self._wave_data_stereo is not None:
-            display_stereo = self._display_data_with_edits(self._wave_data_stereo)
-            half_h = self.wave_height / 2.0
-            draw_waveform_on_canvas(
-                self.wave_canvas,
-                display_stereo[:, 0],
-                self.view_start_frac,
-                end_frac,
-                self.wave_width,
-                half_h,
-                tag="waveform",
-                y_offset=0,
-                clear=True,
-            )
-            draw_waveform_on_canvas(
-                self.wave_canvas,
-                display_stereo[:, 1],
-                self.view_start_frac,
-                end_frac,
-                self.wave_width,
-                half_h,
-                tag="waveform",
-                y_offset=half_h,
-                clear=False,
-            )
-            self.wave_canvas.create_line(
-                0, half_h, self.wave_width, half_h, fill=BORDER_COLOR, width=1, tags="waveform"
-            )
-        else:
-            display_mono = self._display_data_with_edits(self._wave_data)
-            draw_waveform_on_canvas(
-                self.wave_canvas,
-                display_mono,
-                self.view_start_frac,
-                end_frac,
-                self.wave_width,
-                self.wave_height,
-            )
-        # Overlay FIRST, markers on top. The other way round (which is how
-        # this used to run) painted the shaded region straight over the red
-        # end marker, which is exactly where the two most often coincide -
-        # the Chop view already drew them in this order.
-        self._redraw_length_limit_overlay()
-        self.redraw_markers()
-
     def _get_pad_settings(self):
         """(rate, force_mono, pitch_cents) currently configured for the pad
         this sample lives on - used to compute the same export duration
@@ -608,63 +521,6 @@ class PadWaveformViewDialog(tk.Toplevel):
             self.wave_canvas, x_cut, self.wave_width, self.wave_height, tag="lenlimit"
         )
 
-    def _update_scrollbar_visibility(self):
-        if self.zoom_factor > 1.0 and self._wave_data is not None:
-            if not self.wave_scrollbar.winfo_ismapped():
-                self._zoom_spacer.pack_forget()
-                self.wave_scrollbar.pack(fill="x", pady=(0, 4), after=self.wave_canvas)
-            first = self.view_start_frac
-            last = self.view_start_frac + self.view_span_frac
-            self.wave_scrollbar.set(first, last)
-        else:
-            if self.wave_scrollbar.winfo_ismapped():
-                self.wave_scrollbar.pack_forget()
-            if not self._zoom_spacer.winfo_ismapped():
-                self._zoom_spacer.pack(fill="x", pady=(0, 4), after=self.wave_canvas)
-
-    def _pan_to(self, new_start_frac):
-        new_start_frac = max(0.0, min(new_start_frac, 1.0 - self.view_span_frac))
-        self.view_start_frac = new_start_frac
-        self.center_frac = self.view_start_frac + self.view_span_frac / 2.0
-        self._render_wave_at_current_view()
-
-    def on_wave_scroll(self, *args):
-        if not args or self.view_span_frac >= 1.0:
-            return
-        action = args[0]
-        if action == "moveto":
-            self._pan_to(float(args[1]))
-        elif action == "scroll":
-            amount = float(args[1])
-            unit = args[2] if len(args) > 2 else "units"
-            step = self.view_span_frac * (0.1 if unit == "units" else 0.9)
-            self._pan_to(self.view_start_frac + amount * step)
-
-    def on_wave_mousewheel(self, event):
-        if self.view_span_frac >= 1.0:
-            return
-        if getattr(event, "num", None) == 4:
-            delta = -1
-        elif getattr(event, "num", None) == 5:
-            delta = 1
-        else:
-            delta = -1 if event.delta > 0 else 1
-        step = self.view_span_frac * 0.1
-        self._pan_to(self.view_start_frac + delta * step)
-
-    def zoom_in(self):
-        cap = max_zoom_for(getattr(self, "play_duration", 0))
-        self.zoom_factor = min(self.zoom_factor * 1.6, cap)
-        self.render_and_draw_wave()
-
-    def zoom_out(self):
-        self.zoom_factor = max(self.zoom_factor / 1.6, 1.0)
-        self.render_and_draw_wave()
-
-    def zoom_reset(self):
-        self.zoom_factor = 1.0
-        self.render_and_draw_wave()
-
     def _adjust_fade(self, which, direction):
         """Moves one step along FADE_STEPS (logarithmic: fine-grained near
         0.01s, coarser toward 1s) rather than a fixed linear increment."""
@@ -679,106 +535,6 @@ class PadWaveformViewDialog(tk.Toplevel):
             self.fade_out_seconds = new_value
             self.fade_out_label.config(text=f"{new_value:.2f}s")
         self._render_wave_at_current_view()
-
-    def redraw_markers(self):
-        self.wave_canvas.delete("marker")
-        self.wave_canvas.delete("playhead")
-        x_start = self.frac_to_x(self.trim_start_frac)
-        x_end = self.frac_to_x(self.trim_end_frac)
-        if x_start > 0:
-            self.wave_canvas.create_rectangle(
-                0,
-                0,
-                x_start,
-                self.wave_height,
-                fill=BG_DARK,
-                stipple="gray50",
-                outline="",
-                tags="marker",
-            )
-        if x_end < self.wave_width:
-            self.wave_canvas.create_rectangle(
-                x_end,
-                0,
-                self.wave_width,
-                self.wave_height,
-                fill=BG_DARK,
-                stipple="gray50",
-                outline="",
-                tags="marker",
-            )
-        draw_bracket_marker(self.wave_canvas, x_start, self.wave_height, ACCENT_GREEN, "start")
-        draw_bracket_marker(self.wave_canvas, x_end, self.wave_height, ACCENT_RED, "end")
-        self.update_duration_label()
-
-    def update_duration_label(self):
-        if not hasattr(self, "duration_label"):
-            return
-        if self.play_duration <= 0:
-            self.duration_label.config(text="")
-            return
-        region_duration = self.play_duration * (self.trim_end_frac - self.trim_start_frac)
-        self.duration_label.config(text=f"Selection: {region_duration:.2f}s")
-
-    def on_wave_press(self, event):
-        if self.is_chop_sample:
-            self.drag_target = None
-            return
-        x_start = self.frac_to_x(self.trim_start_frac)
-        x_end = self.frac_to_x(self.trim_end_frac)
-        if abs(event.x - x_start) <= 9:
-            self.drag_target = "start"
-        elif abs(event.x - x_end) <= 9:
-            self.drag_target = "end"
-        else:
-            self.drag_target = None
-
-    def on_wave_drag(self, event):
-        if not self.drag_target:
-            return
-        frac = max(0.0, min(self.x_to_frac(event.x), 1.0))
-        if self.drag_target == "start":
-            gap = min_trim_fraction(getattr(self, "play_duration", 0))
-            self.trim_start_frac = min(frac, self.trim_end_frac - gap)
-        elif self.drag_target == "end":
-            gap = min_trim_fraction(getattr(self, "play_duration", 0))
-            self.trim_end_frac = max(frac, self.trim_start_frac + gap)
-        self.redraw_markers()
-
-    def on_wave_release(self, event):
-        dragged = self.drag_target
-        self.drag_target = None
-        if dragged and self.zoom_factor > 1.0:
-            self.center_frac = self.trim_start_frac if dragged == "start" else self.trim_end_frac
-            self.render_and_draw_wave()
-
-    def update_playhead(self):
-        if not self.is_playing:
-            return
-        elapsed = time.time() - self.play_start_time
-        override = getattr(self, "_audible_seconds", None)
-        region_duration = (
-            override
-            if override
-            else self.play_duration * (self.trim_end_frac - self.trim_start_frac)
-        )
-        frac_in_region = min(elapsed / region_duration, 1.0) if region_duration > 0 else 1.0
-        abs_frac = self.trim_start_frac + frac_in_region * (
-            self.trim_end_frac - self.trim_start_frac
-        )
-        x = self.frac_to_x(abs_frac)
-        self.wave_canvas.delete("playhead")
-        if 0 <= x <= self.wave_width:
-            self.wave_canvas.create_line(
-                x, 0, x, self.wave_height, fill=ACCENT_BLUE, width=2, tags="playhead"
-            )
-        if frac_in_region < 1.0:
-            self.after(30, self.update_playhead)
-        else:
-            self.is_playing = False
-            self.play_btn.text = "\u25b6 Preview"
-            self.play_btn._draw()
-            self.wave_canvas.delete("playhead")
 
     def toggle_play(self):
         if self.is_playing:
