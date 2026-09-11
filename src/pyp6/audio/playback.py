@@ -56,19 +56,22 @@ try:
     def play_audio(data, samplerate):
         """Play *data* through the current output device.
 
-        Always calls sd.stop() first to release any cached PortAudio stream ---
-        this is essential on macOS where a stale stream from a disconnected
-        device causes paInvalidDevice (-9986) even after the device is
-        reconnected.  If the stored device index is no longer valid (hot-plug
-        event), it re-runs _find_output_device() and retries once before giving
-        up.
+        Always calls sd.stop() first to release any cached PortAudio stream.
+        On failure (e.g. headphones unplugged/replugged), PortAudio's internal
+        device list is stale — a full terminate+initialize cycle forces it to
+        re-enumerate CoreAudio devices before retrying once.
         """
         global SD_OUTPUT_DEVICE
         sd.stop()
         try:
             sd.play(data, samplerate, device=SD_OUTPUT_DEVICE)
         except Exception:
-            # Device index went stale --- re-scan and try once more.
+            # Force PortAudio to re-enumerate devices (handles hot-plug).
+            try:
+                sd._terminate()
+                sd._initialize()
+            except Exception:
+                pass
             SD_OUTPUT_DEVICE = _find_output_device()
             sd.play(data, samplerate, device=SD_OUTPUT_DEVICE)
 
