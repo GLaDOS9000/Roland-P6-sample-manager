@@ -658,17 +658,22 @@ class SettingsDialog(tk.Toplevel):
         return names, indices
 
     def _reload_output_device(self):
-        """Stop playback, re-scan devices, apply the selected one.
+        """Stop playback, force PortAudio re-enumeration, rebuild the device list.
 
-        Calling sd.stop() before re-scanning is critical: PortAudio holds an
-        internal stream open after each sd.play(), and that stale stream is
-        what causes paInvalidDevice (-9986) after a hot-plug event even when
-        the correct device is selected.
+        sd.query_devices() returns PortAudio's internal cache, which is not
+        updated when devices are plugged or unplugged.  A terminate+initialize
+        cycle forces CoreAudio to be re-queried, so the list reflects the
+        actual hardware state at the moment Reload is pressed.
         """
         try:
             import sounddevice as sd
 
-            sd.stop()  # release any cached PortAudio stream first
+            sd.stop()  # release any open stream before reinit
+            try:
+                sd._terminate()
+                sd._initialize()
+            except Exception:
+                pass  # best-effort; query_devices will still run
 
             # Rebuild the device list from scratch to pick up hot-plug changes.
             self._device_names, self._device_indices = self._list_output_devices()
