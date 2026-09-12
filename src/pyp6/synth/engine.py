@@ -19,7 +19,7 @@ from pyp6.constants import (
     WT_SR,
 )
 from pyp6.log import logger
-from pyp6.synth.morphing import SWEEP_MORPH_DENSITY, morph_frames
+from pyp6.synth.morphing import BLEND_STEPS, SWEEP_MORPH_DENSITY, morph_frames
 from pyp6.synth.waveforms import (
     wt_family_entry,
     wt_selection_names,
@@ -123,11 +123,15 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None):
 
     s = WTSynth(L, cycles, h)
     counts = wt_split_steps(len(selection))
-    segs, rows = [], []
     step = 0
     total_steps = max(1, sum(counts))
+
+    # Pass 1: generate all keyframes per family into a list of lists so that
+    # cross-family blend zones can be applied before flattening.
+    family_frames = []
     for item, count in zip(selection, counts):
         fam_name, fn = wt_family_entry(item)
+        frames = []
         for j in range(count):
             m = 0.5 if count == 1 else j / (count - 1)
             w, desc = fn(s, m, f_real)
@@ -135,11 +139,45 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None):
             peak = np.max(np.abs(w))
             if peak > 1e-12:
                 w = w / peak
+            frames.append([w, fam_name, m, desc])
+        family_frames.append(frames)
+        step += count
+        if progress:
+            progress(step / total_steps)
+
+    # Pass 2: replace boundary frames at each cross-family transition with
+    # spectrally-morphed frames so the P-6 START knob sweeps without clicks.
+    # can_blend guards against single-segment families where there is no room
+    # to steal a frame from each side.
+    if BLEND_STEPS > 0 and len(family_frames) > 1:
+        for i in range(len(family_frames) - 1):
+            left = family_frames[i]
+            right = family_frames[i + 1]
+            can_blend = min(BLEND_STEPS, len(left) - 1, len(right) - 1)
+            if can_blend < 1:
+                continue
+            anchor_a = left[-(can_blend + 1)][0]
+            anchor_b = right[can_blend][0]
+            total_t = can_blend * 2 + 1
+            for k in range(can_blend):
+                blended = morph_frames(anchor_a, anchor_b, (k + 1) / total_t)
+                pk = np.max(np.abs(blended))
+                left[-(can_blend - k)][0] = blended / pk if pk > 1e-12 else blended
+                left[-(can_blend - k)][1] = left[-(can_blend - k)][1] + "→"
+            for k in range(can_blend):
+                blended = morph_frames(anchor_a, anchor_b, (can_blend + k + 1) / total_t)
+                pk = np.max(np.abs(blended))
+                right[k][0] = blended / pk if pk > 1e-12 else blended
+                right[k][1] = "→" + right[k][1]
+
+    # Pass 3: flatten into the segs / rows lists that the rest of wt_build uses.
+    segs, rows = [], []
+    step = 0
+    for frames in family_frames:
+        for w, fam_name, m, desc in frames:
             segs.append(w * WT_PEAK)
             rows.append([step, fam_name, f"{m:.4f}", desc, step * L, f"{step * L / WT_SR:.6f}"])
             step += 1
-        if progress:
-            progress(step / total_steps)
 
     audio = np.concatenate(segs)
     pcm = (np.clip(audio, -1.0, 1.0) * 32767.0).astype("<i2")
