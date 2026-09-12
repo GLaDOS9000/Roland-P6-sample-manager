@@ -1,6 +1,7 @@
 """Tests for pyp6.audio.conversion with pedalboard."""
 
 import numpy as np
+import pytest
 
 
 def test_apply_pitch_shift_no_op():
@@ -11,6 +12,7 @@ def test_apply_pitch_shift_no_op():
     assert result is audio
 
 
+@pytest.mark.requires_pedalboard
 def test_apply_pitch_shift_returns_array():
     from pyp6.audio.conversion import apply_pitch_shift
 
@@ -39,6 +41,7 @@ def test_normalize_audio():
     assert abs(np.max(np.abs(result)) - 1.0) < 1e-6
 
 
+@pytest.mark.requires_pedalboard
 def test_build_chop_file_returns_array(tmp_path):
     import soundfile as sf
 

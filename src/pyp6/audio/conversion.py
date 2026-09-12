@@ -4,8 +4,6 @@ import os
 import uuid
 
 import numpy as np
-import pedalboard
-from pedalboard.io import AudioFile
 
 from pyp6.audio.info import get_wav_info, get_wav_sample_width
 from pyp6.audio.playback import AUDIO_AVAILABLE
@@ -39,6 +37,8 @@ def apply_pitch_shift(audio_np, sr, cents):
     resampled so that when written at sr it plays pitch-shifted by cents."""
     if not cents:
         return audio_np
+    import pedalboard  # lazy: avoids a module-level import that crashes on no-AVX CPUs
+
     factor = pitch_speed_factor(cents)
     new_sr = int(round(sr * factor))
     if new_sr <= 0:
@@ -61,6 +61,9 @@ def compute_export_ready_path(filepath, target_rate, pitch_cents=0, force_mono=F
     if target_rate == orig_rate and not pitch_cents and not needs_mono and not needs_bit_depth_fix:
         return filepath
     try:
+        import pedalboard  # lazy
+        from pedalboard.io import AudioFile  # lazy
+
         with AudioFile(filepath) as f:
             audio = f.read(f.frames)  # (channels, samples) float32
             sr = f.samplerate
@@ -111,6 +114,8 @@ def convert_to_wav_if_needed(path):
         )
         return path, False
     try:
+        from pedalboard.io import AudioFile  # lazy
+
         with AudioFile(path) as f:
             audio = f.read(f.frames)
             sr = f.samplerate
@@ -136,6 +141,9 @@ def build_chop_file(file_paths, rate, channels, num_slices, normalize_mode="off"
     """
     if not AUDIO_AVAILABLE:
         raise RuntimeError("pedalboard is required for the Chop feature.")
+
+    import pedalboard  # lazy
+    from pedalboard.io import AudioFile  # lazy
 
     from pyp6.audio.processing import snap_ms_backward_to_zero
 
