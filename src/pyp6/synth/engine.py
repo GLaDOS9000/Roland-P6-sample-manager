@@ -107,7 +107,7 @@ def wt_harmonics_for(L, cycles, up_semitones):
     return max(4, min(h_max, int(h_max / 2.0 ** (up_semitones / 12.0)))), h_max
 
 
-def wt_build(selection, midi, cycles, up_semitones, progress=None):
+def wt_build(selection, midi, cycles, up_semitones, progress=None, blend_steps=None):
     """Returns (pcm_int16, rows, meta)."""
     logger.info(
         f"wt_build: {len(selection)} famil{'y' if len(selection) == 1 else 'ies'}, "
@@ -149,11 +149,12 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None):
     # spectrally-morphed frames so the P-6 START knob sweeps without clicks.
     # can_blend guards against single-segment families where there is no room
     # to steal a frame from each side.
-    if BLEND_STEPS > 0 and len(family_frames) > 1:
+    _blend_steps = BLEND_STEPS if blend_steps is None else int(blend_steps)
+    if _blend_steps > 0 and len(family_frames) > 1:
         for i in range(len(family_frames) - 1):
             left = family_frames[i]
             right = family_frames[i + 1]
-            can_blend = min(BLEND_STEPS, len(left) - 1, len(right) - 1)
+            can_blend = min(_blend_steps, len(left) - 1, len(right) - 1)
             if can_blend < 1:
                 continue
             anchor_a = left[-(can_blend + 1)][0]
@@ -202,7 +203,16 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None):
     return pcm, rows, meta
 
 
-def wt_render_sweep(family, midi, cycles, up_semitones, steps, seconds=WT_PREVIEW_SECONDS):
+def wt_render_sweep(
+    family,
+    midi,
+    cycles,
+    up_semitones,
+    steps,
+    seconds=WT_PREVIEW_SECONDS,
+    use_spectral=True,
+    sweep_density=None,
+):
     """A morph sweep through one family."""
     L, f_real, _ = wt_tuning_info(midi, cycles)
     h, _ = wt_harmonics_for(L, cycles, up_semitones)
@@ -223,11 +233,11 @@ def wt_render_sweep(family, midi, cycles, up_semitones, steps, seconds=WT_PREVIE
     t = np.arange(n)
     if steps == 1:
         out = tabs[0][t % Lp]
-    else:
+    elif use_spectral:
         # Pre-compute a dense grid of spectrally-morphed frames, then use
         # nearest-frame lookup.  Linear blending of two already-morphed frames
         # would reintroduce comb filtering, so we avoid it here.
-        N = SWEEP_MORPH_DENSITY
+        N = SWEEP_MORPH_DENSITY if sweep_density is None else max(2, int(sweep_density))
         dense = np.empty((N, Lp))
         for i in range(N):
             pos = i / (N - 1) * (steps - 1)
@@ -239,6 +249,13 @@ def wt_render_sweep(family, midi, cycles, up_semitones, steps, seconds=WT_PREVIE
         tp = t * ((N - 1) / (n - 1))
         idx = np.clip(np.round(tp).astype(int), 0, N - 1)
         out = dense[idx, t % Lp]
+    else:
+        # Legacy linear time-domain blend (faster, no phase correction).
+        tp = t * ((steps - 1) / (n - 1))
+        i0 = np.clip(np.floor(tp).astype(int), 0, steps - 1)
+        i1 = np.clip(i0 + 1, 0, steps - 1)
+        fr = tp - i0
+        out = tabs[i0, t % Lp] * (1 - fr) + tabs[i1, t % Lp] * fr
 
     ramp = int(0.015 * WT_SR)
     env = np.ones(n)
