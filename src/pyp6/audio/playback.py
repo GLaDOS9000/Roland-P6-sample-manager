@@ -2,14 +2,23 @@
 
 import contextlib
 import os as _os
+import subprocess
+import sys
 
 from pyp6.log import logger
 
+# pedalboard ships a compiled C extension that requires AVX CPU instructions.
+# On some machines (certain CI runners) importing it raises SIGILL — a fatal
+# signal that kills the whole Python process, not an ImportError that try/except
+# can catch.  A subprocess probe is the only safe way to detect availability.
 try:
-    import pedalboard  # noqa: F401
-
-    AUDIO_AVAILABLE = True
-except ImportError:
+    _probe = subprocess.run(
+        [sys.executable, "-c", "import pedalboard"],
+        capture_output=True,
+        timeout=10,
+    )
+    AUDIO_AVAILABLE = _probe.returncode == 0
+except Exception:
     AUDIO_AVAILABLE = False
 
 PYDUB_AVAILABLE = AUDIO_AVAILABLE  # backward-compat alias
