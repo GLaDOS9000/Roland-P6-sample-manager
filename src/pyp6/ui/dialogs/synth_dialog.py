@@ -116,6 +116,9 @@ class SynthDialog(tk.Toplevel):
         self.var_up = tk.IntVar(value=int(cfg.get("up", 0)))
         self.var_save_map = tk.BooleanVar(value=bool(cfg.get("save_map", False)))
         self.var_autoplay = tk.BooleanVar(value=load_default_autoplay())
+        self.var_spectral_morph = tk.BooleanVar(value=bool(cfg.get("spectral_morph", True)))
+        self.var_blend_steps = tk.IntVar(value=int(cfg.get("blend_steps", 2)))
+        self.var_sweep_density = tk.IntVar(value=int(cfg.get("sweep_density", 64)))
         # The two listboxes keep holding plain names; the drawn shapes live
         # here and are looked up by name. Putting dicts into a Listbox would
         # have meant rewriting every selection, reorder and duplicate check.
@@ -501,6 +504,71 @@ class SynthDialog(tk.Toplevel):
         self.lbl_prev = tk.Label(prev, text="")
         style_label(self.lbl_prev, bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.lbl_prev.pack(side="left")
+
+        morph_row = tk.Frame(wf, bg=BG_DARK)
+        morph_row.grid(row=5, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        self.cb_spectral = tk.Checkbutton(
+            morph_row,
+            text="Spectral morphing",
+            variable=self.var_spectral_morph,
+            command=self._toggle_spectral_controls,
+        )
+        style_checkbutton(self.cb_spectral)
+        self.cb_spectral.pack(side="left", padx=(0, 14))
+        add_tooltip(
+            self.cb_spectral,
+            "Interpolates frames in the frequency domain (magnitude + phase) "
+            "instead of mixing samples directly. Eliminates volume dips and "
+            "comb filtering when adjacent frames are phase-offset.\n"
+            "Disable for the legacy linear blend.",
+        )
+        tk.Label(
+            morph_row, text="Boundary blend:", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)
+        ).pack(side="left")
+        self.spn_blend = tk.Spinbox(
+            morph_row,
+            from_=0,
+            to=4,
+            increment=1,
+            textvariable=self.var_blend_steps,
+            width=2,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            buttonbackground=BG_INPUT,
+            highlightthickness=0,
+            relief="flat",
+            font=(UI_FAMILY, 9),
+        )
+        self.spn_blend.pack(side="left", padx=(2, 12))
+        add_tooltip(
+            self.spn_blend,
+            "Number of frames replaced on each side of a cross-family boundary "
+            "with spectrally-morphed transitions (0 = disabled). Affects the "
+            "built wavetable only, not the preview.",
+        )
+        tk.Label(
+            morph_row, text="Preview density:", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)
+        ).pack(side="left")
+        self.spn_density = tk.Spinbox(
+            morph_row,
+            values=(16, 32, 64, 128),
+            textvariable=self.var_sweep_density,
+            width=3,
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            buttonbackground=BG_INPUT,
+            highlightthickness=0,
+            relief="flat",
+            font=(UI_FAMILY, 9),
+        )
+        self.spn_density.pack(side="left", padx=(2, 0))
+        add_tooltip(
+            self.spn_density,
+            "Number of intermediate frames pre-computed for the preview sweep "
+            "(16–128). Higher values give a smoother morph at slightly more "
+            "CPU cost. Affects preview only, not the built wavetable.",
+        )
+        self._toggle_spectral_controls()
 
         # --- footer ---
         foot = tk.Frame(root, bg=BG_DARK)
@@ -1124,6 +1192,11 @@ class SynthDialog(tk.Toplevel):
         # smooth enough that 64 sounds the same.
         return min(n, self.PREVIEW_STEP_CAP)
 
+    def _toggle_spectral_controls(self):
+        state = "normal" if self.var_spectral_morph.get() else "disabled"
+        self.spn_blend.config(state=state)
+        self.spn_density.config(state=state)
+
     def _update_preview_label(self):
         if not self.prev_family:
             self.btn_prev.text = "\u25b6"
@@ -1168,7 +1241,16 @@ class SynthDialog(tk.Toplevel):
         midi, cycles, up = self._current_pitch()
         steps = self._preview_steps(self.prev_family)
         try:
-            audio = wt_render_sweep(self._resolve(self.prev_family), midi, cycles, up, steps)
+            spectral = self.var_spectral_morph.get()
+            audio = wt_render_sweep(
+                self._resolve(self.prev_family),
+                midi,
+                cycles,
+                up,
+                steps,
+                use_spectral=spectral,
+                sweep_density=self.var_sweep_density.get() if spectral else None,
+            )
             play_audio(audio, WT_SR)
         except Exception as e:
             logger.exception(f"SynthDialog preview failed for family {self.prev_family!r}")
@@ -1257,7 +1339,14 @@ class SynthDialog(tk.Toplevel):
         self._status("Building wavetable \u2026", "info")
         self.update_idletasks()
         try:
-            pcm, rows, meta = wt_build(self._resolved_selection(), midi, cycles, up)
+            spectral = self.var_spectral_morph.get()
+            pcm, rows, meta = wt_build(
+                self._resolved_selection(),
+                midi,
+                cycles,
+                up,
+                blend_steps=self.var_blend_steps.get() if spectral else 0,
+            )
         except Exception as e:
             logger.exception("SynthDialog wt_build failed")
             self.btn_apply.config_state("normal")
@@ -1275,6 +1364,9 @@ class SynthDialog(tk.Toplevel):
                 # drawings the table does not contain.
                 "custom": [self.custom[n] for n in sel if n in self.custom],
                 "save_map": bool(self.var_save_map.get()),
+                "spectral_morph": bool(self.var_spectral_morph.get()),
+                "blend_steps": int(self.var_blend_steps.get()),
+                "sweep_density": int(self.var_sweep_density.get()),
             },
             "pcm": pcm,
             "rows": rows,
