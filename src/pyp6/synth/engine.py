@@ -19,6 +19,7 @@ from pyp6.constants import (
     WT_SR,
 )
 from pyp6.log import logger
+from pyp6.synth.morphing import SWEEP_MORPH_DENSITY, morph_frames
 from pyp6.synth.waveforms import (
     wt_family_entry,
     wt_selection_names,
@@ -185,11 +186,21 @@ def wt_render_sweep(family, midi, cycles, up_semitones, steps, seconds=WT_PREVIE
     if steps == 1:
         out = tabs[0][t % Lp]
     else:
-        tp = t * ((steps - 1) / (n - 1))
-        i0 = np.clip(np.floor(tp).astype(int), 0, steps - 1)
-        i1 = np.clip(i0 + 1, 0, steps - 1)
-        fr = tp - i0
-        out = tabs[i0, t % Lp] * (1 - fr) + tabs[i1, t % Lp] * fr
+        # Pre-compute a dense grid of spectrally-morphed frames, then use
+        # nearest-frame lookup.  Linear blending of two already-morphed frames
+        # would reintroduce comb filtering, so we avoid it here.
+        N = SWEEP_MORPH_DENSITY
+        dense = np.empty((N, Lp))
+        for i in range(N):
+            pos = i / (N - 1) * (steps - 1)
+            i0 = min(int(pos), steps - 2)
+            fr = pos - i0
+            morphed = morph_frames(tabs[i0], tabs[i0 + 1], fr)
+            pk = np.max(np.abs(morphed))
+            dense[i] = morphed / pk if pk > 1e-12 else morphed
+        tp = t * ((N - 1) / (n - 1))
+        idx = np.clip(np.round(tp).astype(int), 0, N - 1)
+        out = dense[idx, t % Lp]
 
     ramp = int(0.015 * WT_SR)
     env = np.ones(n)
