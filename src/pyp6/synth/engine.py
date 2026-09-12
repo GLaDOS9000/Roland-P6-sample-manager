@@ -1,5 +1,6 @@
 """Wavetable synth engine: WTSynth, build, render, PRM sidecar."""
 
+import math
 import os
 import wave
 
@@ -19,6 +20,7 @@ from pyp6.constants import (
     WT_SR,
 )
 from pyp6.log import logger
+from pyp6.synth.antialiasing import mipmap_frame
 from pyp6.synth.morphing import BLEND_STEPS, SWEEP_MORPH_DENSITY, morph_frames
 from pyp6.synth.waveforms import (
     wt_family_entry,
@@ -122,6 +124,7 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None, blend_steps=N
     h, h_max = wt_harmonics_for(L, cycles, up_semitones)
 
     s = WTSynth(L, cycles, h)
+    target_octave = math.ceil(up_semitones / 12)
     counts = wt_split_steps(len(selection))
     step = 0
     total_steps = max(1, sum(counts))
@@ -136,9 +139,7 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None, blend_steps=N
             m = 0.5 if count == 1 else j / (count - 1)
             w, desc = fn(s, m, f_real)
             w = s.band_limit(np.asarray(w, dtype=np.float64))
-            peak = np.max(np.abs(w))
-            if peak > 1e-12:
-                w = w / peak
+            w = mipmap_frame(w, f_real, target_octave)
             frames.append([w, fam_name, m, desc])
         family_frames.append(frames)
         step += count
