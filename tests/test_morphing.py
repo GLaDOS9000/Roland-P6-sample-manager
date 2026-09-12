@@ -85,3 +85,32 @@ def test_wt_render_sweep_shape_and_dtype():
     audio = wt_render_sweep("Saw", midi=60, cycles=2, up_semitones=0, steps=4)
     assert audio.dtype == np.float32
     assert len(audio) == int(WT_PREVIEW_SECONDS * WT_SR)
+
+
+def test_wt_render_sweep_legacy_mode_matches_shape():
+    """use_spectral=False must still return a correctly-shaped float32 array."""
+    from pyp6.constants import WT_PREVIEW_SECONDS, WT_SR
+    from pyp6.synth.engine import wt_render_sweep
+
+    audio = wt_render_sweep("Saw", midi=60, cycles=2, up_semitones=0, steps=4, use_spectral=False)
+    assert audio.dtype == np.float32
+    assert len(audio) == int(WT_PREVIEW_SECONDS * WT_SR)
+
+
+def test_wt_build_blend_steps_zero_keeps_count():
+    """blend_steps=0 must still yield 255 rows (legacy concatenation path)."""
+    from pyp6.constants import WT_SEGMENTS
+    from pyp6.synth.engine import wt_build
+
+    _, rows, _ = wt_build(["Saw", "Sine"], midi=60, cycles=2, up_semitones=0, blend_steps=0)
+    assert len(rows) == WT_SEGMENTS
+
+
+def test_wt_render_sweep_custom_density():
+    """A custom sweep_density value must be respected."""
+    from pyp6.constants import WT_PREVIEW_SECONDS, WT_SR
+    from pyp6.synth.engine import wt_render_sweep
+
+    audio = wt_render_sweep("FM", midi=60, cycles=2, up_semitones=0, steps=4, sweep_density=16)
+    assert audio.dtype == np.float32
+    assert len(audio) == int(WT_PREVIEW_SECONDS * WT_SR)
