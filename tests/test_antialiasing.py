@@ -168,3 +168,28 @@ def test_wt_build_pcm_peak_within_range():
     peak = np.max(np.abs(pcm.astype(np.float64)))
     assert peak >= WT_PEAK * 32767 * 0.5
     assert peak <= 32767
+
+
+def test_wt_build_lead_has_fewer_harmonics():
+    """The Lead register (up_semitones=24) must have near-zero energy above K_max.
+
+    End-to-end spectral assertion: after wt_build the first frame of the PCM
+    must be band-limited to the Nyquist-safe range for a 2-octave upward
+    transposition.  Energy above K_max+3 (outside the taper zone) must be
+    negligible compared to the passband.
+    """
+    from pyp6.synth.engine import wt_build
+
+    midi, cycles, up = 48, 2, 24
+    pcm, _, meta = wt_build(["Saw"], midi=midi, cycles=cycles, up_semitones=up)
+    L = meta["L"]
+    f_real = meta["f_real"]
+
+    frame = pcm[:L].astype(np.float64) / 32767.0
+    spec = np.abs(np.fft.rfft(frame))
+
+    k_max = int(44100 / (2.0 * f_real * 2**2))
+    # Allow margin above K_max for the taper zone (3 bins)
+    energy_above = np.sum(spec[k_max + 4 :] ** 2)
+    energy_below = np.sum(spec[1 : k_max - 2] ** 2)
+    assert energy_above < energy_below * 1e-4
