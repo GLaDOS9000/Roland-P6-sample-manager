@@ -112,18 +112,14 @@ jobs:
           fi
 
       # ── Test runs ─────────────────────────────────────────────────────────
-      - name: Run full suite (push to main)
-        if: github.event_name == 'push'
+      - name: pytest (full suite)
+        if: github.event_name == 'push' || steps.scope.outputs.scope == 'all'
         run: uv run --extra test pytest -v
 
-      - name: Run full suite (PR — infra changed)
-        if: github.event_name == 'pull_request' && steps.scope.outputs.scope == 'all'
-        run: uv run --extra test pytest -v
-
-      - name: Run matched tests (PR)
+      - name: pytest (changed files only)
         if: github.event_name == 'pull_request' && steps.scope.outputs.scope == 'partial'
         run: uv run --extra test pytest -v ${{ steps.scope.outputs.tests }}
 
-      - name: Skip (no matching tests)
+      - name: pytest (nothing to run)
         if: github.event_name == 'pull_request' && steps.scope.outputs.scope == 'none'
         run: echo "No test files match the changed source files — skipping."
