@@ -628,7 +628,7 @@ class SynthDialog(tk.Toplevel):
             font=(UI_FAMILY, 9),
         )
         self.scl_warp_amount.pack(side="left")
-        self._tip_warp_amount = add_tooltip(self.scl_warp_amount, "")
+        self._tip_warp_amount = add_tooltip(self.scl_warp_amount, " ")
         self._toggle_warp_controls()
 
         # --- footer ---
