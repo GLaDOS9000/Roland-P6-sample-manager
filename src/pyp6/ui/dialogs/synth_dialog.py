@@ -596,8 +596,17 @@ class SynthDialog(tk.Toplevel):
         self.om_warp.pack(side="left", padx=(0, 10))
         add_tooltip(
             self.om_warp,
-            "Post-oscillator waveshaping applied to every frame after spectral morphing.\n"
-            "PWM Bend: asymmetric duty-cycle remap  ·  Sync: phase compression  ·  Fold: wavefolding",
+            "Post-oscillator waveshaping applied to every frame after spectral morphing "
+            "and before PCM export.\n\n"
+            "PWM Bend — shifts the duty-cycle midpoint, stretching the first half of the "
+            "cycle and compressing the second (or vice versa). Emulates pulse-width "
+            "modulation without an LFO.\n\n"
+            "Sync — compresses the phase read-index by a sync ratio, restarting the "
+            "waveform multiple times per cycle. Adds rich upper harmonics similar to "
+            "oscillator hard sync.\n\n"
+            "Fold — applies a wavefolding transfer function (arcsin·sin). Drives the "
+            "signal into a triangle-wave mirror at the fold threshold, generating dense "
+            "odd harmonics.",
         )
         self.lbl_warp_amount = tk.Label(
             warp_row, text="Amount", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)
@@ -619,6 +628,7 @@ class SynthDialog(tk.Toplevel):
             font=(UI_FAMILY, 9),
         )
         self.scl_warp_amount.pack(side="left")
+        self._tip_warp_amount = add_tooltip(self.scl_warp_amount, "")
         self._toggle_warp_controls()
 
         # --- footer ---
@@ -1248,10 +1258,32 @@ class SynthDialog(tk.Toplevel):
         self.spn_blend.config(state=state)
         self.spn_density.config(state=state)
 
+    _WARP_AMOUNT_TIPS = {
+        "PWM Bend": (
+            "Duty-cycle skew (0 = symmetric / identity, 1 = maximum asymmetry).\n"
+            "The midpoint of the waveform is shifted so the rising portion is stretched "
+            "and the falling portion is compressed, widening or narrowing the effective pulse width."
+        ),
+        "Sync": (
+            "Sync ratio (0 = 1× / identity, 1 = 8× compression).\n"
+            "Higher values restart the waveform more times per cycle, adding progressively "
+            "richer upper harmonics similar to oscillator hard sync."
+        ),
+        "Fold": (
+            "Fold depth (0 = no folding / identity, 1 = maximum folding).\n"
+            "Lowers the amplitude threshold at which the signal is mirrored back, "
+            "generating dense odd harmonics. At high values the waveform becomes "
+            "increasingly complex and buzzy."
+        ),
+    }
+
     def _toggle_warp_controls(self, *_):
-        state = "normal" if self.var_warp_type.get() != "Off" else "disabled"
+        wt = self.var_warp_type.get()
+        state = "normal" if wt != "Off" else "disabled"
         self.scl_warp_amount.config(state=state)
         self.lbl_warp_amount.config(fg=FG_TEXT if state == "normal" else FG_MUTED)
+        if self._tip_warp_amount is not None:
+            self._tip_warp_amount.text = self._WARP_AMOUNT_TIPS.get(wt, "")
 
     def _update_preview_label(self):
         if not self.prev_family:
