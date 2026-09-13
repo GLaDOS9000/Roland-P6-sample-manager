@@ -317,9 +317,9 @@ class WaterfallDialog(tk.Toplevel):
         self._waterfall.pack(fill="x", pady=(0, 8))
         add_tooltip(
             self._waterfall,
-            "Magnitude spectrum (dB) across all 255 wavetable segments.\n"
-            "X: harmonic bin (1–{n}), Y: segment (0–254).\n"
-            "Bright = loud, dark = silent.",
+            f"Magnitude spectrum (dB) across all 255 wavetable segments.\n"
+            f"X: harmonic bin (1–{_N_BINS}), Y: segment (0–254).\n"
+            f"Bright = loud, dark = silent.",
         )
 
         try:
