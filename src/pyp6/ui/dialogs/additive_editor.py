@@ -1,9 +1,9 @@
 """Additive Editor dialog: 32-harmonic waveform builder.
 
-Users adjust per-harmonic amplitude sliders and optional phase spinboxes to
-construct a single-cycle waveform.  The result is saved to the custom family
-library and appears in the SynthDialog step order alongside drawn shapes and
-the 16 built-in families.
+Users adjust per-harmonic amplitude and phase sliders to construct a
+single-cycle waveform.  The result is saved to the custom family library and
+appears in the SynthDialog step order alongside drawn shapes and the 16
+built-in families.
 """
 
 import tkinter as tk
@@ -106,6 +106,91 @@ def _preset_amps_phases(name):
 
 
 # ---------------------------------------------------------------------------
+# Shared scrollable slider bank helper
+# ---------------------------------------------------------------------------
+
+
+def _build_scrollable_slider_bank(parent, bg, n, var_list, from_, to_, resolution, length):
+    """Build a horizontally scrollable row of *n* vertical tk.Scale widgets.
+
+    Returns the ``RoundedScrollbar`` instance so the caller can configure
+    colours or hide it as needed.
+
+    The scrollbar is packed **before** the canvas so that tkinter's pack
+    manager reserves its space at the bottom first; the canvas then fills
+    the remaining area.  Reversing this order causes the canvas to consume
+    all available space, making the scrollbar invisible.
+
+    Parameters
+    ----------
+    parent : tk.Widget
+        Container frame (already created by the caller).
+    bg : str
+        Background colour for the inner frame and canvas.
+    n : int
+        Number of sliders to create.
+    var_list : list of tk.Variable
+        One variable per slider (must already exist).
+    from_, to_ : float
+        Scale range; ``from_`` is the visual top (high value).
+    resolution : float
+        Slider step size.
+    length : int
+        Pixel length of each Scale widget.
+
+    Returns
+    -------
+    sliders : list of tk.Scale
+    scrollbar : RoundedScrollbar
+    """
+    scroll_canvas = tk.Canvas(parent, bg=bg, highlightthickness=0)
+    scrollbar = RoundedScrollbar(parent, orient="horizontal", command=scroll_canvas.xview)
+
+    # Pack scrollbar FIRST so it claims its space before the canvas expands
+    scrollbar.pack(side="bottom", fill="x")
+    scroll_canvas.pack(fill="both", expand=True)
+    scroll_canvas.configure(xscrollcommand=scrollbar.set)
+
+    inner = tk.Frame(scroll_canvas, bg=bg)
+    scroll_canvas.create_window((0, 0), window=inner, anchor="nw")
+    inner.bind(
+        "<Configure>",
+        lambda e: scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all")),
+    )
+
+    sliders = []
+    for k in range(n):
+        col_frame = tk.Frame(inner, bg=bg)
+        col_frame.pack(side="left", padx=2, pady=(6, 2))
+
+        sc = tk.Scale(
+            col_frame,
+            variable=var_list[k],
+            orient="vertical",
+            from_=from_,
+            to=to_,
+            resolution=resolution,
+            length=length,
+            showvalue=False,
+            bg=BG_DARK,
+            fg=FG_MUTED,
+            troughcolor=BG_INPUT,
+            activebackground=ACCENT_BLUE,
+            highlightthickness=0,
+            relief="flat",
+            sliderlength=14,
+        )
+        sc.pack()
+        sliders.append(sc)
+
+        lbl = tk.Label(col_frame, text=str(k + 1))
+        style_label(lbl, bg=bg, fg=FG_MUTED, font=(UI_FAMILY, 7))
+        lbl.pack()
+
+    return sliders, scrollbar
+
+
+# ---------------------------------------------------------------------------
 # AdditiveEditorDialog
 # ---------------------------------------------------------------------------
 
@@ -113,9 +198,10 @@ def _preset_amps_phases(name):
 class AdditiveEditorDialog(tk.Toplevel):
     """Construct a single-cycle waveform from up to 32 harmonic partials.
 
-    The dialog presents a bank of amplitude sliders (one per harmonic) and an
-    optional collapsible phase section.  A live preview canvas and audition
-    button let the user hear the result before saving.
+    The dialog presents two scrollable banks of vertical sliders: one for
+    harmonic amplitudes (0–1) and a collapsible one for phases (0°–360°).  A
+    live preview canvas with axis labels and an audition button let the user
+    evaluate the result before saving.
 
     Parameters
     ----------
@@ -157,10 +243,10 @@ class AdditiveEditorDialog(tk.Toplevel):
         self._last_frame = np.zeros(2048)
 
         # ------------------------------------------------------------------ #
-        # State: 32 amplitude DoubleVars (0.0–1.0) + 32 phase IntVars (0°–360°)
+        # State: 32 amplitude DoubleVars (0.0–1.0) + 32 phase DoubleVars (0°–360°)
         # ------------------------------------------------------------------ #
         self.amp_vars = [tk.DoubleVar(value=0.0) for _ in range(_N)]
-        self.phase_vars = [tk.IntVar(value=0) for _ in range(_N)]
+        self.phase_vars = [tk.DoubleVar(value=0.0) for _ in range(_N)]
         self.name_var = tk.StringVar(value="Additive")
 
         if entry:
@@ -168,7 +254,7 @@ class AdditiveEditorDialog(tk.Toplevel):
             for i, v in enumerate((entry.get("amps") or [])[:_N]):
                 self.amp_vars[i].set(float(v))
             for i, v in enumerate((entry.get("phases") or [])[:_N]):
-                self.phase_vars[i].set(int(v))
+                self.phase_vars[i].set(float(v))
 
         # Attach traces — all share one debounced update path
         for var in self.amp_vars + self.phase_vars:
@@ -180,7 +266,7 @@ class AdditiveEditorDialog(tk.Toplevel):
         self.title("Additive Editor")
         style_toplevel(self)
         self.minsize(900, 620)
-        self.geometry("980x700")
+        self.geometry("980x760")
 
         self._build()
 
@@ -215,12 +301,11 @@ class AdditiveEditorDialog(tk.Toplevel):
         self._build_phase_section()
 
         # FOOT: action buttons
-        foot = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
-        foot.pack(fill="x")
-        self._build_foot(foot)
+        self._foot_frame = tk.Frame(self, padx=14, pady=10, bg=BG_DARK)
+        self._foot_frame.pack(fill="x")
+        self._build_foot(self._foot_frame)
 
     def _build_head(self, head):
-        # Name entry
         lbl = tk.Label(head, text="Name:")
         style_label(lbl, font=(UI_FAMILY, 9))
         lbl.pack(side="left")
@@ -239,7 +324,6 @@ class AdditiveEditorDialog(tk.Toplevel):
         )
         self.name_entry.pack(side="left", padx=(6, 18))
 
-        # Preset buttons (right-aligned)
         preset_frame = tk.Frame(head, bg=BG_DARK)
         preset_frame.pack(side="right")
         preset_lbl = tk.Label(preset_frame, text="Presets:")
@@ -263,54 +347,12 @@ class AdditiveEditorDialog(tk.Toplevel):
         panel = RoundedPanel(body, title="Harmonics")
         panel.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
-        # Scrollable container for the 32 sliders
-        scroll_host = tk.Frame(panel.body, bg=BG_PANEL)
-        scroll_host.pack(fill="both", expand=True, padx=6, pady=6)
+        host = tk.Frame(panel.body, bg=BG_PANEL)
+        host.pack(fill="both", expand=True, padx=6, pady=6)
 
-        self._slider_canvas = tk.Canvas(scroll_host, bg=BG_PANEL, highlightthickness=0)
-        self._slider_canvas.pack(side="left", fill="both", expand=True)
-
-        self._slider_scrollbar = RoundedScrollbar(
-            scroll_host, orient="horizontal", command=self._slider_canvas.xview
+        self._amp_sliders, _ = _build_scrollable_slider_bank(
+            host, BG_PANEL, _N, self.amp_vars, from_=1.0, to_=0.0, resolution=0.01, length=150
         )
-        self._slider_scrollbar.pack(side="bottom", fill="x")
-        self._slider_canvas.configure(xscrollcommand=self._slider_scrollbar.set)
-
-        inner = tk.Frame(self._slider_canvas, bg=BG_PANEL)
-        self._slider_canvas.create_window((0, 0), window=inner, anchor="nw")
-        inner.bind(
-            "<Configure>",
-            lambda e: self._slider_canvas.configure(scrollregion=self._slider_canvas.bbox("all")),
-        )
-
-        self._sliders = []
-        for k in range(_N):
-            col_frame = tk.Frame(inner, bg=BG_PANEL)
-            col_frame.pack(side="left", padx=2, pady=(6, 2))
-
-            sc = tk.Scale(
-                col_frame,
-                variable=self.amp_vars[k],
-                orient="vertical",
-                from_=1.0,
-                to=0.0,
-                resolution=0.01,
-                length=150,
-                showvalue=False,
-                bg=BG_DARK,
-                fg=FG_MUTED,
-                troughcolor=BG_INPUT,
-                activebackground=ACCENT_BLUE,
-                highlightthickness=0,
-                relief="flat",
-                sliderlength=14,
-            )
-            sc.pack()
-            self._sliders.append(sc)
-
-            lbl = tk.Label(col_frame, text=str(k + 1))
-            style_label(lbl, bg=BG_PANEL, fg=FG_MUTED, font=(UI_FAMILY, 7))
-            lbl.pack()
 
     def _build_preview_panel(self, body):
         panel = RoundedPanel(body, title="Preview")
@@ -329,65 +371,31 @@ class AdditiveEditorDialog(tk.Toplevel):
         phase_header = tk.Frame(self, bg=BG_DARK, padx=10)
         phase_header.pack(fill="x", pady=(2, 0))
 
-        self._lbl_phase_toggle = tk.Label(
-            phase_header,
-            text="\u25b6 Phase",
-            cursor="hand2",
-            font=(UI_FAMILY, 9, "bold"),
-            fg=FG_MUTED,
-        )
+        self._lbl_phase_toggle = tk.Label(phase_header, text="\u25b6 Phase", cursor="hand2")
         style_label(self._lbl_phase_toggle, fg=FG_MUTED, font=(UI_FAMILY, 9, "bold"))
         self._lbl_phase_toggle.config(cursor="hand2")
         self._lbl_phase_toggle.pack(side="left")
         self._lbl_phase_toggle.bind("<Button-1>", lambda _: self._toggle_phase())
         add_tooltip(
             self._lbl_phase_toggle,
-            "Expand to adjust the phase (in degrees) of each harmonic partial. "
+            "Expand to adjust the phase (0°–360°) of each harmonic partial. "
             "Phase shifts are rare in practice — most presets sound best at 0°.",
         )
         tk.Frame(phase_header, bg=BORDER_COLOR, height=1).pack(
             side="left", fill="x", expand=True, padx=(8, 0)
         )
 
-        # Body (collapsed by default)
-        self._phase_body = tk.Frame(self, bg=BG_DARK, padx=14, pady=6)
-        # Not packed initially — toggled on demand
+        # Body (collapsed by default) — same scrollable slider pattern as Harmonics
+        self._phase_body = tk.Frame(self, bg=BG_DARK, padx=8, pady=6)
 
-        self._phase_spinboxes = []
-        COLS = 8
-        for k in range(_N):
-            row, col = divmod(k, COLS)
-            cell = tk.Frame(self._phase_body, bg=BG_DARK)
-            cell.grid(row=row * 2, column=col, padx=4, pady=(2, 0))
+        host = tk.Frame(self._phase_body, bg=BG_PANEL)
+        host.pack(fill="both", expand=True)
 
-            lbl = tk.Label(cell, text=f"k={k + 1}")
-            style_label(lbl, bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 7))
-            lbl.pack()
-
-            cell2 = tk.Frame(self._phase_body, bg=BG_DARK)
-            cell2.grid(row=row * 2 + 1, column=col, padx=4, pady=(0, 4))
-
-            sb = tk.Spinbox(
-                cell2,
-                from_=0,
-                to=355,
-                increment=5,
-                textvariable=self.phase_vars[k],
-                width=4,
-                bg=BG_INPUT,
-                fg=FG_TEXT,
-                buttonbackground=BG_INPUT,
-                insertbackground=FG_TEXT,
-                relief="flat",
-                highlightthickness=1,
-                highlightbackground=BORDER_COLOR,
-                font=(UI_FAMILY, 8),
-            )
-            sb.pack()
-            self._phase_spinboxes.append(sb)
+        self._phase_sliders, _ = _build_scrollable_slider_bank(
+            host, BG_PANEL, _N, self.phase_vars, from_=360.0, to_=0.0, resolution=1.0, length=120
+        )
 
     def _build_foot(self, foot):
-        # Left side: Clear
         RoundedButton(
             foot,
             text="Clear",
@@ -404,7 +412,6 @@ class AdditiveEditorDialog(tk.Toplevel):
             "Reset all amplitude sliders to 0 and all phase values to 0°.",
         )
 
-        # Audition button
         self.btn_audition = RoundedButton(
             foot,
             text="\u25b6 Audition",
@@ -423,7 +430,6 @@ class AdditiveEditorDialog(tk.Toplevel):
             "configured in the Synth dialog.",
         )
 
-        # Right side: Cancel + Save
         RoundedButton(
             foot,
             text="Cancel",
@@ -457,14 +463,8 @@ class AdditiveEditorDialog(tk.Toplevel):
             self._phase_body.pack_forget()
             self._lbl_phase_toggle.config(text="\u25b6 Phase", fg=FG_MUTED)
         else:
-            self._phase_body.pack(fill="x", before=self._foot_anchor())
+            self._phase_body.pack(fill="x", before=self._foot_frame)
             self._lbl_phase_toggle.config(text="\u25bc Phase", fg=FG_TEXT)
-
-    def _foot_anchor(self):
-        """Return the foot frame so the phase body packs before it."""
-        # The foot is the last child packed — walk children to find it
-        children = self.pack_slaves()
-        return children[-1] if children else None
 
     # ---------------------------------------------------------------------- #
     # Preset loading                                                           #
@@ -480,10 +480,9 @@ class AdditiveEditorDialog(tk.Toplevel):
             ``"Triangle"``, ``"Organ"``.
         """
         amps, phases = _preset_amps_phases(name)
-        # Suspend traces to avoid 64 individual redraws; do one at the end
         for i, (a, p) in enumerate(zip(amps, phases)):
             self.amp_vars[i].set(round(a, 4))
-            self.phase_vars[i].set(p)
+            self.phase_vars[i].set(float(p))
         self._do_update()
         self.name_var.set(name)
 
@@ -495,7 +494,7 @@ class AdditiveEditorDialog(tk.Toplevel):
         for var in self.amp_vars:
             var.set(0.0)
         for var in self.phase_vars:
-            var.set(0)
+            var.set(0.0)
         self._do_update()
 
     # ---------------------------------------------------------------------- #
@@ -531,16 +530,50 @@ class AdditiveEditorDialog(tk.Toplevel):
         w = max(2, c.winfo_width())
         h = max(2, c.winfo_height())
         c.delete("all")
+
+        # Plot area: left margin for Y labels, bottom margin for X labels.
+        # The waveform is drawn into [0..plot_w] × [0..plot_h] then shifted
+        # right by margin_l so that it sits inside the axis boundaries.
+        margin_l = 28  # pixels reserved on the left for Y-axis labels
+        margin_b = 18  # pixels reserved at the bottom for X-axis labels
+        plot_w = max(2, w - margin_l)
+        plot_h = max(2, h - margin_b)
+        zero_y = plot_h // 2  # y-coordinate of amplitude=0 within the plot
+
+        # Zero line (dashed)
+        c.create_line(margin_l, zero_y, w, zero_y, fill=FG_MUTED, dash=(2, 4))
+
+        # Waveform — drawn in [0..plot_w]×[0..plot_h] then shifted right
         if self._last_frame is not None and np.any(self._last_frame != 0):
             draw_waveform_on_canvas(
                 c,
                 self._last_frame,
                 0.0,
                 1.0,
-                w,
-                h,
+                plot_w,
+                plot_h,
                 color=WAVE_COLOR,
+                y_offset=0,
+                clear=False,
             )
+            for item in c.find_withtag("waveform"):
+                c.move(item, margin_l, 0)
+
+        _lbl = {"fill": FG_MUTED, "font": (UI_FAMILY, 7)}
+
+        # Y-axis labels (amplitude)
+        c.create_text(margin_l - 3, 3, text="+1", anchor="ne", **_lbl)
+        c.create_text(margin_l - 3, zero_y, text="0", anchor="e", **_lbl)
+        c.create_text(margin_l - 3, plot_h - 3, text="\u22121", anchor="se", **_lbl)
+
+        # X-axis labels (phase / cycle fraction)
+        c.create_text(margin_l, plot_h + 2, text="0°", anchor="nw", **_lbl)
+        c.create_text(margin_l + plot_w // 2, plot_h + 2, text="180°", anchor="n", **_lbl)
+        c.create_text(w - 1, plot_h + 2, text="360°", anchor="ne", **_lbl)
+
+        # Axis lines
+        c.create_line(margin_l, 0, margin_l, plot_h, fill=FG_MUTED)
+        c.create_line(margin_l, plot_h, w, plot_h, fill=FG_MUTED)
 
     # ---------------------------------------------------------------------- #
     # Audition                                                                 #
@@ -592,7 +625,7 @@ class AdditiveEditorDialog(tk.Toplevel):
             "kind": "additive",
             "name": self.name_var.get().strip() or "Additive",
             "amps": [round(v.get(), 4) for v in self.amp_vars],
-            "phases": [v.get() for v in self.phase_vars],
+            "phases": [int(round(v.get())) % 360 for v in self.phase_vars],
             "a": list(self._last_frame.round(4).tolist()),
             "b": list(self._last_frame.round(4).tolist()),
         }
