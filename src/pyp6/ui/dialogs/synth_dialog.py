@@ -95,6 +95,10 @@ class SynthDialog(tk.Toplevel):
     here; the init patch and poly switch live on the pad itself. Everything
     else from the standalone tool is present."""
 
+    _WARP_LABELS = ["Off", "PWM Bend", "Sync", "Fold"]
+    _WARP_KEY = {"Off": "", "PWM Bend": "pwm", "Sync": "sync", "Fold": "fold"}
+    _WARP_LABEL_FOR = {"": "Off", "pwm": "PWM Bend", "sync": "Sync", "fold": "Fold"}
+
     def __init__(self, parent, app, bank, pad, initial_config=None):
         super().__init__(parent)
         style_toplevel(self)
@@ -119,6 +123,8 @@ class SynthDialog(tk.Toplevel):
         self.var_spectral_morph = tk.BooleanVar(value=bool(cfg.get("spectral_morph", True)))
         self.var_blend_steps = tk.IntVar(value=int(cfg.get("blend_steps", 2)))
         self.var_sweep_density = tk.IntVar(value=int(cfg.get("sweep_density", 64)))
+        self.var_warp_type = tk.StringVar(value=cfg.get("warp_type", ""))
+        self.var_warp_amount = tk.DoubleVar(value=float(cfg.get("warp_amount", 0.0)))
         # The two listboxes keep holding plain names; the drawn shapes live
         # here and are looked up by name. Putting dicts into a Listbox would
         # have meant rewriting every selection, reorder and duplicate check.
@@ -569,6 +575,55 @@ class SynthDialog(tk.Toplevel):
             "CPU cost. Affects preview only, not the built wavetable.",
         )
         self._toggle_spectral_controls()
+
+        warp_row = tk.Frame(wf, bg=BG_DARK)
+        warp_row.grid(row=6, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        tk.Label(warp_row, text="Warp:", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
+            side="left", padx=(0, 4)
+        )
+        # Translate stored key → display label before binding to OptionMenu
+        self.var_warp_type.set(self._WARP_LABEL_FOR.get(self.var_warp_type.get(), "Off"))
+        self.om_warp = tk.OptionMenu(
+            warp_row, self.var_warp_type, *self._WARP_LABELS, command=self._toggle_warp_controls
+        )
+        self.om_warp.config(
+            bg=BG_INPUT,
+            fg=FG_TEXT,
+            activebackground=BG_INPUT,
+            activeforeground=FG_TEXT,
+            highlightthickness=0,
+            relief="flat",
+            width=8,
+            font=(UI_FAMILY, 9),
+        )
+        self.om_warp["menu"].config(bg=BG_INPUT, fg=FG_TEXT, font=(UI_FAMILY, 9))
+        self.om_warp.pack(side="left", padx=(0, 10))
+        add_tooltip(
+            self.om_warp,
+            "Post-oscillator waveshaping applied to every frame after spectral morphing.\n"
+            "PWM Bend: asymmetric duty-cycle remap  ·  Sync: phase compression  ·  Fold: wavefolding",
+        )
+        self.lbl_warp_amount = tk.Label(
+            warp_row, text="Amount", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)
+        )
+        self.lbl_warp_amount.pack(side="left", padx=(0, 4))
+        self.scl_warp_amount = tk.Scale(
+            warp_row,
+            orient="horizontal",
+            from_=0.0,
+            to=1.0,
+            resolution=0.01,
+            length=120,
+            variable=self.var_warp_amount,
+            bg=BG_DARK,
+            fg=FG_TEXT,
+            troughcolor=BG_INPUT,
+            highlightthickness=0,
+            showvalue=False,
+            font=(UI_FAMILY, 9),
+        )
+        self.scl_warp_amount.pack(side="left")
+        self._toggle_warp_controls()
 
         # --- footer ---
         foot = tk.Frame(root, bg=BG_DARK)
@@ -1197,6 +1252,11 @@ class SynthDialog(tk.Toplevel):
         self.spn_blend.config(state=state)
         self.spn_density.config(state=state)
 
+    def _toggle_warp_controls(self, *_):
+        state = "normal" if self.var_warp_type.get() != "Off" else "disabled"
+        self.scl_warp_amount.config(state=state)
+        self.lbl_warp_amount.config(fg=FG_TEXT if state == "normal" else FG_MUTED)
+
     def _update_preview_label(self):
         if not self.prev_family:
             self.btn_prev.text = "\u25b6"
@@ -1340,12 +1400,15 @@ class SynthDialog(tk.Toplevel):
         self.update_idletasks()
         try:
             spectral = self.var_spectral_morph.get()
+            _wt_key = self._WARP_KEY.get(self.var_warp_type.get(), "")
             pcm, rows, meta = wt_build(
                 self._resolved_selection(),
                 midi,
                 cycles,
                 up,
                 blend_steps=self.var_blend_steps.get() if spectral else 0,
+                warp_type=_wt_key if _wt_key else None,
+                warp_amount=self.var_warp_amount.get(),
             )
         except Exception as e:
             logger.exception("SynthDialog wt_build failed")
@@ -1367,6 +1430,8 @@ class SynthDialog(tk.Toplevel):
                 "spectral_morph": bool(self.var_spectral_morph.get()),
                 "blend_steps": int(self.var_blend_steps.get()),
                 "sweep_density": int(self.var_sweep_density.get()),
+                "warp_type": self._WARP_KEY.get(self.var_warp_type.get(), ""),
+                "warp_amount": float(self.var_warp_amount.get()),
             },
             "pcm": pcm,
             "rows": rows,
