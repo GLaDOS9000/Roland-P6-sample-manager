@@ -574,10 +574,10 @@ class AdditiveEditorDialog(tk.Toplevel):
         c.create_text(margin_l - 4, plot_h - 3, text="\u22121", anchor="se", **_tick)
 
         # X-axis ticks and title
-        c.create_text(margin_l, plot_h + 2, text="0°", anchor="nw", **_tick)
-        c.create_text(margin_l + plot_w // 2, plot_h + 2, text="180°", anchor="n", **_tick)
-        c.create_text(w - 1, plot_h + 2, text="360°", anchor="ne", **_tick)
-        c.create_text(margin_l + plot_w // 2, h - 2, text="Phase", anchor="s", **_title)
+        c.create_text(margin_l, plot_h + 2, text="0", anchor="nw", **_tick)
+        c.create_text(margin_l + plot_w // 2, plot_h + 2, text="½", anchor="n", **_tick)
+        c.create_text(w - 1, plot_h + 2, text="1", anchor="ne", **_tick)
+        c.create_text(margin_l + plot_w // 2, h - 2, text="Time (1 cycle)", anchor="s", **_title)
 
         # Axis lines
         c.create_line(margin_l, 0, margin_l, plot_h, fill=FG_MUTED)
