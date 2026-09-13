@@ -29,6 +29,7 @@ from pyp6._theme_vars import (
     BTN_BLUE,
     BTN_GREEN,
     BTN_ORANGE,
+    BTN_PURPLE,
     BTN_RED,
     FG_MUTED,
     FG_TEXT,
@@ -69,6 +70,7 @@ from pyp6.synth.waveforms import (
     wt_family_entry,
 )
 from pyp6.theme import blend_colors, readable_on
+from pyp6.ui.dialogs.additive_editor import AdditiveEditorDialog
 from pyp6.ui.dialogs.waveform_creator import WaveformCreatorDialog
 from pyp6.ui.dialogs_common import (
     add_tooltip,
@@ -426,6 +428,26 @@ class SynthDialog(tk.Toplevel):
             "family. Two shapes are made, and the family morphs from one to "
             "the other.\nDouble-click one of your own waveforms to edit it "
             "again.",
+        )
+
+        self.btn_additive = RoundedButton(
+            col,
+            text="\u2248",
+            command=self._open_additive,
+            bg=BTN_PURPLE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=40,
+            height=26,
+            font=(UI_FAMILY, 11, "bold"),
+        )
+        self.btn_additive.pack(pady=3)
+        add_tooltip(
+            self.btn_additive,
+            "Opens the Additive Editor: build a waveform from up to 32 harmonic "
+            "partials using amplitude sliders and phase controls. The result joins "
+            "the available list as its own family.\n"
+            "Double-click one of your additive waveforms to edit it again.",
         )
 
         # Red only while a drawn family is highlighted. The built-in sixteen
@@ -803,7 +825,7 @@ class SynthDialog(tk.Toplevel):
                 {
                     n: e
                     for n, e in self.custom.items()
-                    if isinstance(e, dict) and e.get("kind") == "draw"
+                    if isinstance(e, dict) and e.get("kind") in ("draw", "additive")
                 }
             )
             for i in reversed(range(self.lb_sel.size())):
@@ -835,7 +857,7 @@ class SynthDialog(tk.Toplevel):
             {
                 n: e
                 for n, e in self.custom.items()
-                if isinstance(e, dict) and e.get("kind") == "draw"
+                if isinstance(e, dict) and e.get("kind") in ("draw", "additive")
             }
         ):
             self._status("Waveform kept for this pad, but the library could not be written.", "bad")
@@ -843,6 +865,56 @@ class SynthDialog(tk.Toplevel):
         # A shape you just drew is almost certainly meant to be used, so it
         # goes straight into the step order - unless it is already there
         # (editing an existing one) or there is no room left.
+        note = f'"{wanted}" was already taken, saved as "{new["name"]}".  ' if renamed else ""
+        cur = self._selection()
+        if new["name"] not in cur:
+            if len(cur) < WT_MAX_SELECTED:
+                self.lb_sel.insert("end", new["name"])
+                self._status(
+                    f"{note}{new['name']} added to the step order.", "warn" if renamed else "good"
+                )
+            else:
+                self._status(
+                    f"{note}{new['name']} is in the list on the left. The "
+                    f"step order is full ({WT_MAX_SELECTED}), so it was "
+                    f"not added - take something out to make room.",
+                    "warn",
+                )
+        elif renamed:
+            self._status(note.strip(), "warn")
+        self._refresh()
+
+    def _open_additive(self, existing=None):
+        """Open the Additive Editor for a new or existing additive family."""
+        midi, cycles, up = self._current_pitch()
+        self.app._wt_last_config = {"note": self.var_note.get(), "cycles": cycles, "up": up}
+        entry = self.custom.get(existing) if existing else None
+        dlg = AdditiveEditorDialog(self, self.app, entry=entry)
+        self.wait_window(dlg)
+        if not dlg.result:
+            return
+        new = dlg.result
+        old_name = existing
+        if old_name and old_name != new["name"] and old_name in self.custom:
+            del self.custom[old_name]
+            items = self._selection()
+            self.lb_sel.delete(0, "end")
+            for it in items:
+                self.lb_sel.insert("end", new["name"] if it == old_name else it)
+        wanted = new["name"]
+        new["name"] = self._unique_custom_name(wanted, allow=old_name)
+        renamed = new["name"] != wanted
+        self.custom[new["name"]] = new
+        self._morph_shape_cache = None
+        if not save_drawn_library(
+            {
+                n: e
+                for n, e in self.custom.items()
+                if isinstance(e, dict) and e.get("kind") in ("draw", "additive")
+            }
+        ):
+            self._status("Waveform kept for this pad, but the library could not be written.", "bad")
+        self._fill_available()
         note = f'"{wanted}" was already taken, saved as "{new["name"]}".  ' if renamed else ""
         cur = self._selection()
         if new["name"] not in cur:
@@ -885,7 +957,10 @@ class SynthDialog(tk.Toplevel):
             return
         name = self.lb_avail.get(sel[0])
         if name in self.custom:
-            self._open_draw(existing=name)
+            if self.custom[name].get("kind") == "additive":
+                self._open_additive(existing=name)
+            else:
+                self._open_draw(existing=name)
 
     def _move_right(self):
         cur = self._selection()
@@ -1103,7 +1178,7 @@ class SynthDialog(tk.Toplevel):
             {
                 n: e
                 for n, e in self.custom.items()
-                if isinstance(e, dict) and e.get("kind") == "draw"
+                if isinstance(e, dict) and e.get("kind") in ("draw", "additive")
             }
         )
         for i in reversed(range(self.lb_sel.size())):
