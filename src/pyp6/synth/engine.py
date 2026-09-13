@@ -22,6 +22,7 @@ from pyp6.constants import (
 from pyp6.log import logger
 from pyp6.synth.antialiasing import mipmap_frame
 from pyp6.synth.morphing import BLEND_STEPS, SWEEP_MORPH_DENSITY, morph_frames
+from pyp6.synth.warpers import warp_frame
 from pyp6.synth.waveforms import (
     wt_family_entry,
     wt_selection_names,
@@ -109,7 +110,16 @@ def wt_harmonics_for(L, cycles, up_semitones):
     return max(4, min(h_max, int(h_max / 2.0 ** (up_semitones / 12.0)))), h_max
 
 
-def wt_build(selection, midi, cycles, up_semitones, progress=None, blend_steps=None):
+def wt_build(
+    selection,
+    midi,
+    cycles,
+    up_semitones,
+    progress=None,
+    blend_steps=None,
+    warp_type=None,
+    warp_amount=0.0,
+):
     """Returns (pcm_int16, rows, meta)."""
     logger.info(
         f"wt_build: {len(selection)} famil{'y' if len(selection) == 1 else 'ies'}, "
@@ -172,6 +182,14 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None, blend_steps=N
                 right[k][0] = blended / pk if pk > 1e-12 else blended
                 right[k][1] = "→" + right[k][1]
 
+    # Pass 2.5: optional per-frame post-processing warp.
+    # All frames are already peak-normalized float64 at this point; warp_frame
+    # preserves that invariant so WT_PEAK scaling in Pass 3 remains correct.
+    if warp_type is not None:
+        for frames in family_frames:
+            for frame_row in frames:
+                frame_row[0] = warp_frame(frame_row[0], warp_type, float(warp_amount))
+
     # Pass 3: flatten into the segs / rows lists that the rest of wt_build uses.
     segs, rows = [], []
     step = 0
@@ -213,6 +231,8 @@ def wt_render_sweep(
     seconds=WT_PREVIEW_SECONDS,
     use_spectral=True,
     sweep_density=None,
+    warp_type=None,
+    warp_amount=0.0,
 ):
     """A morph sweep through one family."""
     L, f_real, _ = wt_tuning_info(midi, cycles)
@@ -227,6 +247,7 @@ def wt_render_sweep(
         m = 0.5 if steps == 1 else j / (steps - 1)
         w, _d = fn(s, m, f_real)
         w = s.band_limit(np.asarray(w, dtype=np.float64))
+        w = warp_frame(w, warp_type, float(warp_amount))
         pk = np.max(np.abs(w))
         tabs[j] = w / pk if pk > 1e-12 else w
 
