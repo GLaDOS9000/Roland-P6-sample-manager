@@ -231,6 +231,8 @@ def wt_render_sweep(
     seconds=WT_PREVIEW_SECONDS,
     use_spectral=True,
     sweep_density=None,
+    warp_type=None,
+    warp_amount=0.0,
 ):
     """A morph sweep through one family."""
     L, f_real, _ = wt_tuning_info(midi, cycles)
@@ -245,6 +247,7 @@ def wt_render_sweep(
         m = 0.5 if steps == 1 else j / (steps - 1)
         w, _d = fn(s, m, f_real)
         w = s.band_limit(np.asarray(w, dtype=np.float64))
+        w = warp_frame(w, warp_type, float(warp_amount))
         pk = np.max(np.abs(w))
         tabs[j] = w / pk if pk > 1e-12 else w
 

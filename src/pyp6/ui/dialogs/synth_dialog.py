@@ -581,22 +581,18 @@ class SynthDialog(tk.Toplevel):
         tk.Label(warp_row, text="Warp:", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
             side="left", padx=(0, 4)
         )
-        # Translate stored key → display label before binding to OptionMenu
+        # Translate stored key → display label before binding to RoundedDropdown
         self.var_warp_type.set(self._WARP_LABEL_FOR.get(self.var_warp_type.get(), "Off"))
-        self.om_warp = tk.OptionMenu(
-            warp_row, self.var_warp_type, *self._WARP_LABELS, command=self._toggle_warp_controls
-        )
-        self.om_warp.config(
-            bg=BG_INPUT,
-            fg=FG_TEXT,
-            activebackground=BG_INPUT,
-            activeforeground=FG_TEXT,
-            highlightthickness=0,
-            relief="flat",
-            width=8,
+        self.om_warp = RoundedDropdown(
+            warp_row,
+            self.var_warp_type,
+            self._WARP_LABELS,
+            command=self._toggle_warp_controls,
+            parent_bg=BG_DARK,
+            width=90,
+            height=26,
             font=(UI_FAMILY, 9),
         )
-        self.om_warp["menu"].config(bg=BG_INPUT, fg=FG_TEXT, font=(UI_FAMILY, 9))
         self.om_warp.pack(side="left", padx=(0, 10))
         add_tooltip(
             self.om_warp,
@@ -1310,6 +1306,8 @@ class SynthDialog(tk.Toplevel):
                 steps,
                 use_spectral=spectral,
                 sweep_density=self.var_sweep_density.get() if spectral else None,
+                warp_type=self._WARP_KEY.get(self.var_warp_type.get(), "") or None,
+                warp_amount=self.var_warp_amount.get(),
             )
             play_audio(audio, WT_SR)
         except Exception as e:
