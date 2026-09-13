@@ -146,3 +146,42 @@ def test_fold_output_bounded_analytically():
     for amount in (0.2, 0.5, 0.9):
         result = warp_frame(frame, "fold", amount)
         assert np.all(np.abs(result) <= 1.0 + 1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — wt_build with warp parameters
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("warp_type", ["pwm", "sync", "fold"])
+def test_wt_build_with_warp_returns_255_segments(warp_type):
+    from pyp6.constants import WT_SEGMENTS
+    from pyp6.synth.engine import wt_build
+
+    _pcm, rows, _meta = wt_build(
+        ["Saw"], midi=60, cycles=2, up_semitones=0, warp_type=warp_type, warp_amount=0.5
+    )
+    assert len(rows) == WT_SEGMENTS
+
+
+def test_wt_build_with_warp_pcm_peak_in_range():
+    from pyp6.constants import WT_PEAK, WT_SEGMENTS
+    from pyp6.synth.engine import wt_build
+
+    pcm, rows, _meta = wt_build(
+        ["Saw"], midi=60, cycles=2, up_semitones=0, warp_type="sync", warp_amount=0.6
+    )
+    assert len(rows) == WT_SEGMENTS
+    peak = np.max(np.abs(pcm.astype(np.float32)))
+    assert peak >= WT_PEAK * 32767 * 0.5
+    assert peak <= 32767
+
+
+def test_wt_build_warp_none_matches_no_warp_args():
+    from pyp6.synth.engine import wt_build
+
+    pcm_default, _rows, _meta = wt_build(["Sine"], midi=60, cycles=2, up_semitones=0)
+    pcm_none, _rows2, _meta2 = wt_build(
+        ["Sine"], midi=60, cycles=2, up_semitones=0, warp_type=None, warp_amount=0.0
+    )
+    assert np.array_equal(pcm_default, pcm_none)

@@ -22,6 +22,7 @@ from pyp6.constants import (
 from pyp6.log import logger
 from pyp6.synth.antialiasing import mipmap_frame
 from pyp6.synth.morphing import BLEND_STEPS, SWEEP_MORPH_DENSITY, morph_frames
+from pyp6.synth.warpers import warp_frame
 from pyp6.synth.waveforms import (
     wt_family_entry,
     wt_selection_names,
@@ -109,7 +110,16 @@ def wt_harmonics_for(L, cycles, up_semitones):
     return max(4, min(h_max, int(h_max / 2.0 ** (up_semitones / 12.0)))), h_max
 
 
-def wt_build(selection, midi, cycles, up_semitones, progress=None, blend_steps=None):
+def wt_build(
+    selection,
+    midi,
+    cycles,
+    up_semitones,
+    progress=None,
+    blend_steps=None,
+    warp_type=None,
+    warp_amount=0.0,
+):
     """Returns (pcm_int16, rows, meta)."""
     logger.info(
         f"wt_build: {len(selection)} famil{'y' if len(selection) == 1 else 'ies'}, "
@@ -171,6 +181,14 @@ def wt_build(selection, midi, cycles, up_semitones, progress=None, blend_steps=N
                 pk = np.max(np.abs(blended))
                 right[k][0] = blended / pk if pk > 1e-12 else blended
                 right[k][1] = "→" + right[k][1]
+
+    # Pass 2.5: optional per-frame post-processing warp.
+    # All frames are already peak-normalized float64 at this point; warp_frame
+    # preserves that invariant so WT_PEAK scaling in Pass 3 remains correct.
+    if warp_type is not None:
+        for frames in family_frames:
+            for frame_row in frames:
+                frame_row[0] = warp_frame(frame_row[0], warp_type, float(warp_amount))
 
     # Pass 3: flatten into the segs / rows lists that the rest of wt_build uses.
     segs, rows = [], []
