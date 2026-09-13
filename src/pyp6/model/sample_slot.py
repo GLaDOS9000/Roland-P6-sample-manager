@@ -367,6 +367,23 @@ class SampleSlot:
             "through with the START control while SIZE stays at 1. Builds the "
             "WAV and its .PRM settings file in one go.",
         )
+        self.spectrum_btn = RoundedButton(
+            btn_row,
+            text="◈",
+            command=self.open_spectrum,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_PANEL,
+            width=36,
+            height=28,
+            state="disabled",
+        )
+        self.spectrum_btn.pack(side="left", padx=2)
+        add_tooltip(
+            self.spectrum_btn,
+            "Show the frequency-domain waterfall for this wavetable's 255 "
+            "segments: magnitude spectrum in dB for each step.",
+        )
 
     # ---------------------------------------------------------------
     # Wavetable synth
@@ -391,6 +408,34 @@ class SampleSlot:
         if not dlg.result:
             return
         self._apply_wavetable(dlg.result)
+
+    def open_spectrum(self):
+        """Open a spectrum waterfall dialog for this wavetable pad."""
+        if not self.wavetable or not self.filepath:
+            return
+        if sf is None:
+            dark_showerror(
+                "Spectrum",
+                "soundfile is not available; cannot read the wavetable.",
+                parent=self.app.root,
+            )
+            return
+        try:
+            pcm_float, _ = sf.read(self.filepath, dtype="float32")
+            pcm_int16 = (np.clip(pcm_float, -1.0, 1.0) * 32767.0).astype(np.int16)
+            meta = dict(self.wavetable.get("meta", {}))
+            if "L" not in meta:
+                meta["L"] = len(pcm_int16) // WT_SEGMENTS
+            from pyp6.ui.waterfall_canvas import WaterfallDialog
+
+            WaterfallDialog(self.app.root, self.display_name, pcm_int16, meta).wait_window()
+        except Exception as e:
+            logger.exception("Spectrum view failed")
+            dark_showerror(
+                "Spectrum",
+                f"Could not compute spectrum:\n{e}",
+                parent=self.app.root,
+            )
 
     def _wavetable_wav_path(self):
         # Unique per build. A fixed wavetable_<bank><pad> name breaks as soon
@@ -555,6 +600,7 @@ class SampleSlot:
             self.synth_btn.set_outline(readable_on(FG_TEXT, BTN_BLUE, 3.0))
             self.synth_btn._draw()
             self.panel.set_border_color(ACCENT_BLUE, width=2)
+            self.spectrum_btn.config_state("normal")
         else:
             self.synth_row.pack_forget()
             self.wt_spacer.pack_forget()
@@ -565,6 +611,7 @@ class SampleSlot:
             self.synth_btn.set_outline(None)
             self.synth_btn._draw()
             self.panel.set_border_color(BORDER_LIGHT, width=1)
+            self.spectrum_btn.config_state("disabled")
         self.update_mini_waveform()
         self._refresh_main_view_if_active()
 

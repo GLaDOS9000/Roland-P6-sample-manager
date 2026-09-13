@@ -672,6 +672,67 @@ class SynthDialog(tk.Toplevel):
         self._tip_warp_amount = add_tooltip(self.scl_warp_amount, " ")
         self._toggle_warp_controls()
 
+        # --- spectrum waterfall (rows 7-8, collapsed by default) ---
+        spectrum_header = tk.Frame(wf, bg=BG_DARK)
+        spectrum_header.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        self.lbl_spectrum_toggle = tk.Label(
+            spectrum_header,
+            text="▶ Spectrum",
+            bg=BG_DARK,
+            fg=FG_MUTED,
+            font=(UI_FAMILY, 8),
+            cursor="hand2",
+        )
+        self.lbl_spectrum_toggle.pack(side="left")
+        self.lbl_spectrum_toggle.bind("<Button-1>", lambda _: self._toggle_spectrum())
+        tk.Frame(spectrum_header, bg=BORDER_COLOR, height=1).pack(
+            side="left", fill="x", expand=True, padx=(6, 0), pady=(7, 0)
+        )
+
+        self.spectrum_body = tk.Frame(wf, bg=BG_DARK)
+        self.spectrum_body.grid(row=8, column=0, columnspan=3, sticky="ew")
+        self.spectrum_body.grid_remove()  # collapsed by default
+
+        spectrum_controls = tk.Frame(self.spectrum_body, bg=BG_DARK)
+        spectrum_controls.pack(side="top", fill="x", pady=(4, 0))
+        self.btn_spectrum = RoundedButton(
+            spectrum_controls,
+            text="Compute Spectrum",
+            command=self._compute_spectrum,
+            bg=BTN_BLUE,
+            fg="#FFFFFF",
+            parent_bg=BG_DARK,
+            width=140,
+            height=26,
+            font=(UI_FAMILY, 9),
+        )
+        self.btn_spectrum.pack(side="left", padx=(0, 8))
+        add_tooltip(
+            self.btn_spectrum,
+            "Builds the wavetable independently (does not apply it to the pad) "
+            "and displays the magnitude spectrum for each segment. Useful for "
+            "inspecting the harmonic content before committing to a final build.",
+        )
+        self.lbl_spectrum_status = tk.Label(spectrum_controls, text="")
+        style_label(self.lbl_spectrum_status, bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8))
+        self.lbl_spectrum_status.pack(side="left", padx=(0, 0))
+
+        from pyp6.ui.waterfall_canvas import WaterfallCanvas
+
+        self.waterfall_canvas = WaterfallCanvas(
+            self.spectrum_body,
+            parent_bg=BG_DARK,
+            width=500,
+            height=160,
+        )
+        self.waterfall_canvas.pack(fill="x", pady=(6, 4))
+        add_tooltip(
+            self.waterfall_canvas,
+            "Magnitude spectrum (dB scale) for each of the 255 wavetable "
+            "segments.\nX: harmonic bin (1–64). Y: segment (0–254). "
+            "Bright = loud, dark = silent.",
+        )
+
         # --- footer ---
         foot = tk.Frame(root, bg=BG_DARK)
         self.foot = foot
@@ -1354,6 +1415,58 @@ class SynthDialog(tk.Toplevel):
         else:
             self.proc_body.grid()
             self.lbl_proc_toggle.config(text="\u25bc Processing", fg=FG_TEXT)
+
+    def _toggle_spectrum(self):
+        if self.spectrum_body.winfo_ismapped():
+            self.spectrum_body.grid_remove()
+            self.lbl_spectrum_toggle.config(text="\u25b6 Spectrum", fg=FG_MUTED)
+        else:
+            self.spectrum_body.grid()
+            self.lbl_spectrum_toggle.config(text="\u25bc Spectrum", fg=FG_TEXT)
+
+    def _compute_spectrum(self):
+        # Independent preview build \u2014 does NOT apply the wavetable to the pad.
+        sel = self._active_selection()
+        if not sel:
+            from pyp6.ui.dialogs_common import dark_showwarning
+
+            dark_showwarning(
+                "Nothing selected",
+                "Please choose at least one waveform family.",
+                parent=self,
+            )
+            return
+        midi, cycles, up = self._current_pitch()
+        self._stop_preview()
+        self.btn_spectrum.config_state("disabled")
+        self.lbl_spectrum_status.config(text="Computing\u2026", fg=FG_MUTED)
+        self.update_idletasks()
+        try:
+            spectral = self.var_spectral_morph.get()
+            _wt_key = self._WARP_KEY.get(self.var_warp_type.get(), "")
+            pcm, _rows, meta = wt_build(
+                self._resolved_selection(),
+                midi,
+                cycles,
+                up,
+                blend_steps=self.var_blend_steps.get() if spectral else 0,
+                warp_type=_wt_key if _wt_key else None,
+                warp_amount=self.var_warp_amount.get(),
+            )
+            self.waterfall_canvas.draw_waterfall(pcm, meta)
+            self.lbl_spectrum_status.config(
+                text=(
+                    f"{meta['L']} samples/seg  \u2022  "
+                    f"{meta.get('cycles', 1)} cycles  \u2022  "
+                    f"{meta.get('f_real', 0):.1f} Hz"
+                ),
+                fg=FG_MUTED,
+            )
+        except Exception as e:
+            logger.exception("Spectrum computation failed")
+            self.lbl_spectrum_status.config(text=f"Error: {e}", fg=ACCENT_RED)
+        finally:
+            self.btn_spectrum.config_state("normal")
 
     def _toggle_spectral_controls(self):
         state = "normal" if self.var_spectral_morph.get() else "disabled"
