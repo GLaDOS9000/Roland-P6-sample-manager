@@ -50,10 +50,9 @@ from pyp6.ui.widgets import RoundedButton, RoundedPanel, RoundedScrollbar
 
 _N = 32  # number of harmonics
 
-# Pixel height of each slider type (Scale length + label below)
-_AMP_SLIDER_LEN = 130
-_PHASE_SLIDER_LEN = 90
-_SLIDER_LABEL_H = 16  # label below each slider
+_AMP_SLIDER_LEN = 130  # px length of each amplitude Scale
+_PHASE_SLIDER_LEN = 90  # px length of each phase Scale
+_LABEL_H = 16  # px height of the harmonic-number label below each slider
 
 
 # ---------------------------------------------------------------------------
@@ -113,13 +112,18 @@ def _preset_amps_phases(name):
 def _build_scrollable_slider_bank(parent, bg, n, var_list, from_, to_, resolution, slider_len):
     """Build a horizontally-scrollable row of *n* vertical tk.Scale widgets.
 
-    The canvas has a **fixed pixel height** equal to the slider length plus
-    the label row below it.  This prevents the canvas from expanding to fill
-    all available space, which would make every slider visible and cause the
-    scrollbar to auto-hide even when the window is narrow.
+    The canvas has a **fixed pixel height** so it never expands to fill the
+    whole container width (which would make all sliders visible and suppress
+    the auto-hide scrollbar).
 
-    The scrollbar is packed **before** the canvas so tkinter's pack manager
-    reserves its space first; the canvas fills the remaining width only.
+    **Critical constructor order:** ``scroll_canvas`` is created before
+    ``RoundedScrollbar`` so that ``scroll_canvas.xview`` can be passed as
+    the ``command`` argument.  ``RoundedScrollbar`` stores ``command`` only
+    as an instance attribute; calling ``configure(command=...)`` on it after
+    construction has no effect.
+
+    The scrollbar is then *packed before* the canvas so tkinter's pack
+    manager reserves its pixel height at the bottom first.
 
     Parameters
     ----------
@@ -143,52 +147,42 @@ def _build_scrollable_slider_bank(parent, bg, n, var_list, from_, to_, resolutio
     sliders : list of tk.Scale
     scrollbar : RoundedScrollbar
     """
-    canvas_h = slider_len + _SLIDER_LABEL_H + 10  # sliders + label + padding
+    canvas_h = slider_len + _LABEL_H + 10
 
-    scrollbar = RoundedScrollbar(parent, orient="horizontal")
-    # Pack scrollbar FIRST — reserves space at the bottom before canvas expands
-    scrollbar.pack(side="bottom", fill="x")
+    # 1. Create the canvas FIRST so its .xview can be passed to RoundedScrollbar
+    scroll_canvas = tk.Canvas(parent, bg=bg, highlightthickness=0, height=canvas_h)
 
-    scroll_canvas = tk.Canvas(
-        parent,
-        bg=bg,
-        highlightthickness=0,
-        height=canvas_h,
-    )
-    # fill="x" only — height is fixed; canvas must NOT expand vertically or
-    # horizontally beyond its natural width, otherwise content always fits and
-    # the scrollbar stays hidden.
-    scroll_canvas.pack(fill="x")
-
-    scrollbar.configure(command=scroll_canvas.xview)
+    # 2. Create scrollbar with command already set
+    scrollbar = RoundedScrollbar(parent, orient="horizontal", command=scroll_canvas.xview)
     scroll_canvas.configure(xscrollcommand=scrollbar.set)
 
+    # 3. Pack scrollbar BEFORE canvas — claims space at bottom first
+    scrollbar.pack(side="bottom", fill="x")
+    scroll_canvas.pack(side="top", fill="x")
+
+    # Scrollable inner frame
     inner = tk.Frame(scroll_canvas, bg=bg)
     win_id = scroll_canvas.create_window((0, 0), window=inner, anchor="nw")
 
     def _on_inner_configure(_event):
-        # Use the inner frame's *requested* size so the scrollregion is set
-        # before the frame has been fully drawn on-screen.
         scroll_canvas.configure(
             scrollregion=(0, 0, inner.winfo_reqwidth(), inner.winfo_reqheight())
         )
 
     def _on_canvas_configure(event):
-        # Keep the embedded window's height in sync with the canvas height so
-        # sliders always fill the visible vertical space.
+        # Keep embedded window height in sync with the canvas
         scroll_canvas.itemconfigure(win_id, height=event.height)
 
     inner.bind("<Configure>", _on_inner_configure)
     scroll_canvas.bind("<Configure>", _on_canvas_configure)
 
-    # Mouse-wheel horizontal scroll (shift+wheel or horizontal wheel)
-    def _on_wheel(event):
+    # Shift+wheel scrolls horizontally
+    def _on_shift_wheel(event):
         scroll_canvas.xview_scroll(
             int(-event.delta / 30) or (-1 if event.delta > 0 else 1), "units"
         )
 
-    scroll_canvas.bind("<Shift-MouseWheel>", _on_wheel)
-    scroll_canvas.bind("<MouseWheel>", lambda e: None)  # absorb plain wheel
+    scroll_canvas.bind("<Shift-MouseWheel>", _on_shift_wheel)
 
     sliders = []
     for k in range(n):
@@ -220,6 +214,26 @@ def _build_scrollable_slider_bank(parent, bg, n, var_list, from_, to_, resolutio
         lbl.pack()
 
     return sliders, scrollbar
+
+
+# ---------------------------------------------------------------------------
+# Section header helper (title + horizontal rule)
+# ---------------------------------------------------------------------------
+
+
+def _section_header(parent, text):
+    """Pack a bold label + separator line into *parent* (a tk.Frame on BG_DARK).
+
+    Returns the label widget so the caller can update its text for collapsible
+    sections.
+    """
+    row = tk.Frame(parent, bg=BG_DARK)
+    row.pack(fill="x", padx=10, pady=(4, 2))
+    lbl = tk.Label(row, text=text)
+    style_label(lbl, fg=FG_MUTED, font=(UI_FAMILY, 9, "bold"))
+    lbl.pack(side="left")
+    tk.Frame(row, bg=BORDER_COLOR, height=1).pack(side="left", fill="x", expand=True, padx=(8, 0))
+    return lbl
 
 
 # ---------------------------------------------------------------------------
@@ -306,14 +320,56 @@ class AdditiveEditorDialog(tk.Toplevel):
         head.pack(fill="x")
         self._build_head(head)
 
-        # PREVIEW: expands to fill remaining vertical space
-        self._build_preview_section()
+        # PREVIEW: RoundedPanel expands to fill remaining vertical space.
+        # RoundedPanel is used here with grid (its documented usage) inside a
+        # container frame that is itself packed with fill=both/expand=True.
+        preview_outer = tk.Frame(self, bg=BG_DARK)
+        preview_outer.pack(fill="both", expand=True, padx=10, pady=(0, 4))
+        preview_outer.grid_rowconfigure(0, weight=1)
+        preview_outer.grid_columnconfigure(0, weight=1)
+        preview_panel = RoundedPanel(preview_outer, title="Preview")
+        preview_panel.grid(row=0, column=0, sticky="nsew")
+        self.preview_canvas = tk.Canvas(preview_panel.body, bg=WAVE_BG, highlightthickness=0)
+        self.preview_canvas.pack(fill="both", expand=True, padx=6, pady=6)
+        self.preview_canvas.bind("<Configure>", lambda _: self._redraw_preview())
 
-        # HARMONICS: fixed-height scrollable slider bank
-        self._build_harmonics_section()
+        # HARMONICS: plain styled frame (fixed height, driven by slider content)
+        _section_header(self, "Harmonics")
+        harm_frame = tk.Frame(self, bg=BG_PANEL)
+        harm_frame.pack(fill="x", padx=10, pady=(0, 6))
+        self._amp_sliders, _ = _build_scrollable_slider_bank(
+            harm_frame,
+            BG_PANEL,
+            _N,
+            self.amp_vars,
+            from_=1.0,
+            to_=0.0,
+            resolution=0.01,
+            slider_len=_AMP_SLIDER_LEN,
+        )
 
-        # PHASE: collapsible fixed-height scrollable slider bank
-        self._build_phase_section()
+        # PHASE: collapsible styled frame
+        self._lbl_phase_toggle = _section_header(self, "\u25b6 Phase")
+        self._lbl_phase_toggle.config(cursor="hand2")
+        self._lbl_phase_toggle.bind("<Button-1>", lambda _: self._toggle_phase())
+        add_tooltip(
+            self._lbl_phase_toggle,
+            "Expand to adjust the phase (0°–360°) of each harmonic partial. "
+            "Phase shifts are rare in practice — most presets sound best at 0°.",
+        )
+
+        self._phase_frame = tk.Frame(self, bg=BG_PANEL)
+        # Not packed initially (collapsed)
+        self._phase_sliders, _ = _build_scrollable_slider_bank(
+            self._phase_frame,
+            BG_PANEL,
+            _N,
+            self.phase_vars,
+            from_=360.0,
+            to_=0.0,
+            resolution=1.0,
+            slider_len=_PHASE_SLIDER_LEN,
+        )
 
         # FOOT
         self._foot_frame = tk.Frame(self, padx=14, pady=8, bg=BG_DARK)
@@ -324,7 +380,7 @@ class AdditiveEditorDialog(tk.Toplevel):
         lbl = tk.Label(head, text="Name:")
         style_label(lbl, font=(UI_FAMILY, 9))
         lbl.pack(side="left")
-        self.name_entry = tk.Entry(
+        tk.Entry(
             head,
             textvariable=self.name_var,
             width=18,
@@ -336,8 +392,7 @@ class AdditiveEditorDialog(tk.Toplevel):
             highlightbackground=BORDER_COLOR,
             highlightcolor=ACCENT_BLUE,
             font=(UI_FAMILY, 10),
-        )
-        self.name_entry.pack(side="left", padx=(6, 18))
+        ).pack(side="left", padx=(6, 18))
 
         preset_frame = tk.Frame(head, bg=BG_DARK)
         preset_frame.pack(side="right")
@@ -356,71 +411,6 @@ class AdditiveEditorDialog(tk.Toplevel):
                 height=24,
                 font=(UI_FAMILY, 8),
             ).pack(side="left", padx=3)
-
-    def _build_preview_section(self):
-        panel = RoundedPanel(self, title="Preview")
-        panel.pack(fill="both", expand=True, padx=10, pady=(0, 4))
-
-        self.preview_canvas = tk.Canvas(panel.body, bg=WAVE_BG, highlightthickness=0)
-        self.preview_canvas.pack(fill="both", expand=True, padx=6, pady=6)
-        self.preview_canvas.bind("<Configure>", lambda _: self._redraw_preview())
-
-    def _build_harmonics_section(self):
-        panel = RoundedPanel(self, title="Harmonics")
-        panel.pack(fill="x", padx=10, pady=(0, 4))
-
-        host = tk.Frame(panel.body, bg=BG_PANEL)
-        host.pack(fill="x", padx=6, pady=6)
-
-        self._amp_sliders, _ = _build_scrollable_slider_bank(
-            host,
-            BG_PANEL,
-            _N,
-            self.amp_vars,
-            from_=1.0,
-            to_=0.0,
-            resolution=0.01,
-            slider_len=_AMP_SLIDER_LEN,
-        )
-
-    def _build_phase_section(self):
-        # Collapsible header
-        phase_header = tk.Frame(self, bg=BG_DARK, padx=10)
-        phase_header.pack(fill="x", pady=(0, 0))
-
-        self._lbl_phase_toggle = tk.Label(phase_header, text="\u25b6 Phase", cursor="hand2")
-        style_label(self._lbl_phase_toggle, fg=FG_MUTED, font=(UI_FAMILY, 9, "bold"))
-        self._lbl_phase_toggle.config(cursor="hand2")
-        self._lbl_phase_toggle.pack(side="left")
-        self._lbl_phase_toggle.bind("<Button-1>", lambda _: self._toggle_phase())
-        add_tooltip(
-            self._lbl_phase_toggle,
-            "Expand to adjust the phase (0°–360°) of each harmonic partial. "
-            "Phase shifts are rare in practice — most presets sound best at 0°.",
-        )
-        tk.Frame(phase_header, bg=BORDER_COLOR, height=1).pack(
-            side="left", fill="x", expand=True, padx=(8, 0)
-        )
-
-        # Body — hidden by default
-        self._phase_body = tk.Frame(self, bg=BG_DARK, padx=10, pady=4)
-
-        phase_panel = RoundedPanel(self._phase_body, title="")
-        phase_panel.pack(fill="x")
-
-        host = tk.Frame(phase_panel.body, bg=BG_PANEL)
-        host.pack(fill="x", padx=6, pady=6)
-
-        self._phase_sliders, _ = _build_scrollable_slider_bank(
-            host,
-            BG_PANEL,
-            _N,
-            self.phase_vars,
-            from_=360.0,
-            to_=0.0,
-            resolution=1.0,
-            slider_len=_PHASE_SLIDER_LEN,
-        )
 
     def _build_foot(self, foot):
         RoundedButton(
@@ -486,11 +476,11 @@ class AdditiveEditorDialog(tk.Toplevel):
     # ---------------------------------------------------------------------- #
 
     def _toggle_phase(self):
-        if self._phase_body.winfo_ismapped():
-            self._phase_body.pack_forget()
+        if self._phase_frame.winfo_ismapped():
+            self._phase_frame.pack_forget()
             self._lbl_phase_toggle.config(text="\u25b6 Phase", fg=FG_MUTED)
         else:
-            self._phase_body.pack(fill="x", before=self._foot_frame)
+            self._phase_frame.pack(fill="x", padx=10, pady=(0, 6), before=self._foot_frame)
             self._lbl_phase_toggle.config(text="\u25bc Phase", fg=FG_TEXT)
 
     # ---------------------------------------------------------------------- #
@@ -577,18 +567,16 @@ class AdditiveEditorDialog(tk.Toplevel):
         _tick = {"fill": FG_MUTED, "font": (UI_FAMILY, 7)}
         _title = {"fill": FG_MUTED, "font": (UI_FAMILY, 7, "bold")}
 
-        # Y-axis title (rotated)
+        # Y-axis title (rotated) and ticks
         c.create_text(8, plot_h // 2, text="Amplitude", angle=90, anchor="center", **_title)
-        # Y-axis ticks
         c.create_text(margin_l - 4, 3, text="+1", anchor="ne", **_tick)
         c.create_text(margin_l - 4, zero_y, text="0", anchor="e", **_tick)
         c.create_text(margin_l - 4, plot_h - 3, text="\u22121", anchor="se", **_tick)
 
-        # X-axis ticks
+        # X-axis ticks and title
         c.create_text(margin_l, plot_h + 2, text="0°", anchor="nw", **_tick)
         c.create_text(margin_l + plot_w // 2, plot_h + 2, text="180°", anchor="n", **_tick)
         c.create_text(w - 1, plot_h + 2, text="360°", anchor="ne", **_tick)
-        # X-axis title
         c.create_text(margin_l + plot_w // 2, h - 2, text="Phase", anchor="s", **_title)
 
         # Axis lines
