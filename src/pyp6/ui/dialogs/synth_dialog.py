@@ -511,8 +511,27 @@ class SynthDialog(tk.Toplevel):
         style_label(self.lbl_prev, bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8))
         self.lbl_prev.pack(side="left")
 
-        morph_row = tk.Frame(wf, bg=BG_DARK)
-        morph_row.grid(row=5, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        proc_header = tk.Frame(wf, bg=BG_DARK)
+        proc_header.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        self.lbl_proc_toggle = tk.Label(
+            proc_header,
+            text="\u25bc Processing",
+            bg=BG_DARK,
+            fg=FG_MUTED,
+            font=(UI_FAMILY, 8),
+            cursor="hand2",
+        )
+        self.lbl_proc_toggle.pack(side="left")
+        self.lbl_proc_toggle.bind("<Button-1>", lambda _: self._toggle_processing())
+        tk.Frame(proc_header, bg=BORDER_COLOR, height=1).pack(
+            side="left", fill="x", expand=True, padx=(6, 0), pady=(7, 0)
+        )
+
+        self.proc_body = tk.Frame(wf, bg=BG_DARK)
+        self.proc_body.grid(row=6, column=0, columnspan=3, sticky="ew")
+
+        morph_row = tk.Frame(self.proc_body, bg=BG_DARK)
+        morph_row.pack(side="top", fill="x", pady=(2, 0))
         self.cb_spectral = tk.Checkbutton(
             morph_row,
             text="Spectral morphing",
@@ -576,8 +595,8 @@ class SynthDialog(tk.Toplevel):
         )
         self._toggle_spectral_controls()
 
-        warp_row = tk.Frame(wf, bg=BG_DARK)
-        warp_row.grid(row=6, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        warp_row = tk.Frame(self.proc_body, bg=BG_DARK)
+        warp_row.pack(side="top", fill="x", pady=(2, 0))
         tk.Label(warp_row, text="Warp:", bg=BG_DARK, fg=FG_MUTED, font=(UI_FAMILY, 8)).pack(
             side="left", padx=(0, 4)
         )
@@ -1252,6 +1271,14 @@ class SynthDialog(tk.Toplevel):
         # additive syntheses before a single sample is heard. The morph is
         # smooth enough that 64 sounds the same.
         return min(n, self.PREVIEW_STEP_CAP)
+
+    def _toggle_processing(self):
+        if self.proc_body.winfo_ismapped():
+            self.proc_body.grid_remove()
+            self.lbl_proc_toggle.config(text="\u25b6 Processing", fg=FG_MUTED)
+        else:
+            self.proc_body.grid()
+            self.lbl_proc_toggle.config(text="\u25bc Processing", fg=FG_TEXT)
 
     def _toggle_spectral_controls(self):
         state = "normal" if self.var_spectral_morph.get() else "disabled"
