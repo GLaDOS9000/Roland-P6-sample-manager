@@ -531,11 +531,11 @@ class AdditiveEditorDialog(tk.Toplevel):
         h = max(2, c.winfo_height())
         c.delete("all")
 
-        # Plot area: left margin for Y labels, bottom margin for X labels.
-        # The waveform is drawn into [0..plot_w] × [0..plot_h] then shifted
-        # right by margin_l so that it sits inside the axis boundaries.
-        margin_l = 28  # pixels reserved on the left for Y-axis labels
-        margin_b = 18  # pixels reserved at the bottom for X-axis labels
+        # Plot area margins:
+        #   margin_l — Y axis title (rotated) + tick labels
+        #   margin_b — X tick labels + X axis title
+        margin_l = 52
+        margin_b = 30
         plot_w = max(2, w - margin_l)
         plot_h = max(2, h - margin_b)
         zero_y = plot_h // 2  # y-coordinate of amplitude=0 within the plot
@@ -559,17 +559,24 @@ class AdditiveEditorDialog(tk.Toplevel):
             for item in c.find_withtag("waveform"):
                 c.move(item, margin_l, 0)
 
-        _lbl = {"fill": FG_MUTED, "font": (UI_FAMILY, 7)}
+        _tick = {"fill": FG_MUTED, "font": (UI_FAMILY, 7)}
+        _title = {"fill": FG_MUTED, "font": (UI_FAMILY, 7, "bold")}
 
-        # Y-axis labels (amplitude)
-        c.create_text(margin_l - 3, 3, text="+1", anchor="ne", **_lbl)
-        c.create_text(margin_l - 3, zero_y, text="0", anchor="e", **_lbl)
-        c.create_text(margin_l - 3, plot_h - 3, text="\u22121", anchor="se", **_lbl)
+        # Y-axis title — rotated 90°, reads bottom-to-top
+        c.create_text(8, plot_h // 2, text="Amplitude", angle=90, anchor="center", **_title)
 
-        # X-axis labels (phase / cycle fraction)
-        c.create_text(margin_l, plot_h + 2, text="0°", anchor="nw", **_lbl)
-        c.create_text(margin_l + plot_w // 2, plot_h + 2, text="180°", anchor="n", **_lbl)
-        c.create_text(w - 1, plot_h + 2, text="360°", anchor="ne", **_lbl)
+        # Y-axis tick labels
+        c.create_text(margin_l - 4, 3, text="+1", anchor="ne", **_tick)
+        c.create_text(margin_l - 4, zero_y, text="0", anchor="e", **_tick)
+        c.create_text(margin_l - 4, plot_h - 3, text="\u22121", anchor="se", **_tick)
+
+        # X-axis tick labels
+        c.create_text(margin_l, plot_h + 2, text="0°", anchor="nw", **_tick)
+        c.create_text(margin_l + plot_w // 2, plot_h + 2, text="180°", anchor="n", **_tick)
+        c.create_text(w - 1, plot_h + 2, text="360°", anchor="ne", **_tick)
+
+        # X-axis title
+        c.create_text(margin_l + plot_w // 2, h - 2, text="Phase", anchor="s", **_title)
 
         # Axis lines
         c.create_line(margin_l, 0, margin_l, plot_h, fill=FG_MUTED)
